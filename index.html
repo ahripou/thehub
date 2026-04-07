@@ -1027,6 +1027,12 @@ function confirmImport() {
   if (!supplierName) { showImportError('Entrez le nom du producteur'); return; }
   if (importedProducts.length === 0) { showImportError('Aucun produit a importer'); return; }
 
+  // If supplier already exists, remove old data first (replace mode)
+  if (suppliers.includes(supplierName)) {
+    if (!confirm('Le producteur "' + supplierName + '" existe deja.\n\nRemplacer ses produits par les nouveaux ?')) return;
+    deleteSupplierData(supplierName);
+  }
+
   // Add to DATA
   const startIdx = DATA.length;
   importedProducts.forEach(p => {
@@ -1091,34 +1097,21 @@ function confirmImport() {
   saveCustomProducers();
 
   // Re-init filters and render
-  const filtersEl = document.getElementById('supplierFilters');
-  filtersEl.innerHTML = '';
-  const btnAll = document.createElement('button');
-  btnAll.className = 'filter-btn active';
-  btnAll.textContent = 'Tous';
-  btnAll.onclick = () => { activeSupplier = null; render(); };
-  filtersEl.appendChild(btnAll);
-  suppliers.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn';
-    btn.textContent = s;
-    btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
-    filtersEl.appendChild(btn);
-  });
+  rebuildFilters();
   renderManageGrid();
-
   closeImport();
   activeSupplier = supplierName;
   render();
   debouncedSave();
 }
 
-function archiveSupplier(name) {
-  if (!confirm('Archiver le producteur "' + name + '" et tous ses produits ?\n\nLes produits seront retires du catalogue.')) return;
-  // Remove products from DATA
+function deleteSupplierData(name) {
+  // Remove products from DATA (reverse to keep indices stable)
   for (let i = DATA.length - 1; i >= 0; i--) {
     if (DATA[i].supplier === name) DATA.splice(i, 1);
   }
+  // Clear cart entries that pointed to now-removed indices
+  Object.keys(cart).forEach(k => delete cart[k]);
   // Remove from CONDITIONS, COLISAGE, supplierColors
   delete CONDITIONS[name];
   delete COLISAGE[name];
@@ -1126,13 +1119,13 @@ function archiveSupplier(name) {
   // Remove from suppliers array
   const idx = suppliers.indexOf(name);
   if (idx >= 0) suppliers.splice(idx, 1);
-  // Remove from cart
-  Object.keys(cart).forEach(k => { if (+k >= DATA.length) delete cart[k]; });
-  // Remove from disabled/compare
+  // Clean up
   disabledSuppliers.delete(name);
+  compareSet.clear();
   if (activeSupplier === name) activeSupplier = null;
+}
 
-  // Rebuild filter buttons
+function rebuildFilters() {
   const filtersEl = document.getElementById('supplierFilters');
   filtersEl.innerHTML = '';
   const btnAll = document.createElement('button');
@@ -1147,7 +1140,12 @@ function archiveSupplier(name) {
     btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
     filtersEl.appendChild(btn);
   });
+}
 
+function deleteSupplier(name) {
+  if (!confirm('Supprimer le producteur "' + name + '" et tous ses produits ?\n\nCette action est irreversible.')) return;
+  deleteSupplierData(name);
+  rebuildFilters();
   renderManageGrid();
   render();
   updateCartBadge();
@@ -1324,7 +1322,7 @@ function renderManageGrid() {
       <span class="supplier-dot" style="background:${supplierColors[s]}"></span>
       ${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(importe)</span>' : ''}
     </label>
-    ${isCustom ? `<button class="delete-supplier" onclick="archiveSupplier('${s.replace(/'/g,"\\'")}')" title="Archiver ce producteur">&times;</button>` : ''}
+    <button class="delete-supplier" onclick="deleteSupplier('${s.replace(/'/g,"\\'")}')" title="Supprimer ce producteur">&times;</button>
   </div>`}).join('');
 }
 
