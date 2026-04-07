@@ -42,6 +42,21 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 .manage-panel.open{display:block}
 .manage-panel h3{font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px}
 .manage-grid{display:flex;flex-wrap:wrap;gap:0.5rem 1rem}
+.manage-columns{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1rem}
+.manage-col{border:2px solid #e8e8d8;border-radius:var(--radius);padding:0.75rem;min-height:120px;transition:background 0.2s}
+.manage-col.dragover{background:#f0faf4;border-color:var(--primary)}
+.manage-col h4{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.6rem;padding-bottom:0.5rem;border-bottom:2px solid #eee;display:flex;align-items:center;gap:0.4rem}
+.manage-col h4 .col-count{background:#e0e0e0;color:var(--text-light);font-size:0.65rem;padding:0.1rem 0.45rem;border-radius:99px}
+.manage-col.clients h4{color:var(--primary)}
+.manage-col.clients h4 .col-count{background:var(--primary);color:#fff}
+.manage-col.prospects h4{color:var(--accent)}
+.manage-col.prospects h4 .col-count{background:var(--accent);color:#fff}
+.manage-col .manage-item{cursor:grab;border:1px solid transparent;border-radius:8px;padding:0.35rem 0.5rem;margin-bottom:0.25rem;transition:all 0.15s}
+.manage-col .manage-item:hover{background:#f8f8f0;border-color:#e0e0e0}
+.manage-col .manage-item.dragging{opacity:0.4;border-style:dashed}
+.manage-col .manage-item[draggable]{user-select:none}
+.manage-col .empty-msg{font-size:0.75rem;color:#ccc;text-align:center;padding:1.5rem 0;font-style:italic}
+@media(max-width:768px){.manage-columns{grid-template-columns:1fr}}
 .manage-item{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0;min-width:200px}
 .manage-item label{font-size:0.85rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:0.5rem;flex:1}
 .toggle-switch{position:relative;width:40px;height:22px;flex-shrink:0}
@@ -460,8 +475,16 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 </div>
 
 <div class="manage-panel" id="managePanel">
-  <h3>Activer / Desactiver les producteurs</h3>
-  <div class="manage-grid" id="manageGrid"></div>
+  <div class="manage-columns">
+    <div class="manage-col clients" id="colClients" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="dropSupplier(event,'client')">
+      <h4><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Producteurs (clients) <span class="col-count" id="clientCount">0</span></h4>
+      <div id="clientGrid"></div>
+    </div>
+    <div class="manage-col prospects" id="colProspects" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="dropSupplier(event,'prospect')">
+      <h4><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Nouveaux producteurs <span class="col-count" id="prospectCount">0</span></h4>
+      <div id="prospectGrid"></div>
+    </div>
+  </div>
   <div class="manage-actions">
     <button onclick="enableAllSuppliers()">Tout activer</button>
     <button onclick="disableAllSuppliers()">Tout desactiver</button>
@@ -654,6 +677,7 @@ async function loadState() {
     lang = data.lang || 'fr';
     view = data.view_mode || 'grid';
     compareView = data.compare_view || 'cards';
+    if (data.supplier_groups) Object.assign(supplierGroups, data.supplier_groups);
     if (data.custom_producers) loadCustomProducers(data.custom_producers);
   } else {
     await sb.from('user_state').insert({ user_id: currentUser.id });
@@ -668,7 +692,7 @@ async function saveState() {
     disabled_suppliers: [...disabledSuppliers],
     sim_values: {...simValues},
     compare_set: [...compareSet],
-    lang, view_mode: view, compare_view: compareView,
+    lang, view_mode: view, compare_view: compareView, supplier_groups: {...supplierGroups},
     updated_at: new Date().toISOString()
   }, { onConflict: 'user_id' });
 }
@@ -1279,6 +1303,7 @@ function confirmImport() {
     suppliers.push(supplierName);
     const colors = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0077b6','#e76f51','#264653','#f4a261'];
     supplierColors[supplierName] = colors[suppliers.length % colors.length];
+    supplierGroups[supplierName] = 'prospect'; // Nouveaux producteurs par defaut
   }
 
   // Save custom producers to Supabase
@@ -1304,6 +1329,7 @@ function deleteSupplierData(name) {
   delete CONDITIONS[name];
   delete COLISAGE[name];
   delete supplierColors[name];
+  delete supplierGroups[name];
   // Remove from suppliers array
   const idx = suppliers.indexOf(name);
   if (idx >= 0) suppliers.splice(idx, 1);
@@ -1381,6 +1407,7 @@ function loadCustomProducers(customData) {
     }
     suppliers.push(supplierName);
     supplierColors[supplierName] = info.color || '#606c38';
+    if (!supplierGroups[supplierName]) supplierGroups[supplierName] = 'prospect';
   }
 }
 
@@ -1475,8 +1502,9 @@ const CONDITIONS = {"Ferme des 3 Rois":{"contact":"comptabilite@fermedes3rois.fr
 const suppliers = [...new Set(DATA.map(p => p.supplier))];
 const ORIGINAL_SUPPLIERS = new Set(suppliers);
 const supplierColors = {};
+const supplierGroups = {}; // { supplierName: 'client' | 'prospect' } — default: 'prospect' for imported, 'client' for original
 const palette = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0077b6','#e76f51','#264653','#f4a261'];
-suppliers.forEach((s, i) => supplierColors[s] = palette[i % palette.length]);
+suppliers.forEach((s, i) => { supplierColors[s] = palette[i % palette.length]; supplierGroups[s] = 'client'; });
 
 function init() {
   const filtersEl = document.getElementById('supplierFilters');
@@ -1498,20 +1526,47 @@ function init() {
 }
 
 function renderManageGrid() {
-  const grid = document.getElementById('manageGrid');
-  grid.innerHTML = suppliers.map(s => {
-    const isCustom = !ORIGINAL_SUPPLIERS.has(s);
-    return `<div class="manage-item">
+  const clients = suppliers.filter(s => supplierGroups[s] === 'client');
+  const prospects = suppliers.filter(s => supplierGroups[s] !== 'client');
+
+  document.getElementById('clientCount').textContent = clients.length;
+  document.getElementById('prospectCount').textContent = prospects.length;
+
+  document.getElementById('clientGrid').innerHTML = clients.length ? clients.map(s => renderSupplierItem(s)).join('') : '<div class="empty-msg">Glissez un producteur ici</div>';
+  document.getElementById('prospectGrid').innerHTML = prospects.length ? prospects.map(s => renderSupplierItem(s)).join('') : '<div class="empty-msg">Glissez un producteur ici</div>';
+}
+
+function renderSupplierItem(s) {
+  const isCustom = !ORIGINAL_SUPPLIERS.has(s);
+  const esc = s.replace(/'/g,"\\'");
+  return `<div class="manage-item" draggable="true" ondragstart="dragSupplier(event,'${esc}')" ondragend="this.classList.remove('dragging')" data-supplier="${s}">
     <label class="toggle-switch">
-      <input type="checkbox" ${disabledSuppliers.has(s)?'':'checked'} onchange="toggleSupplier('${s.replace(/'/g,"\\'")}',this.checked)">
+      <input type="checkbox" ${disabledSuppliers.has(s)?'':'checked'} onchange="event.stopPropagation();toggleSupplier('${esc}',this.checked)">
       <span class="toggle-slider"></span>
     </label>
-    <label onclick="document.querySelector('.manage-item input[onchange*=\\'${s.replace(/'/g,"\\\\'")}\\']').click()">
+    <span style="display:flex;align-items:center;gap:0.4rem;flex:1;font-size:0.85rem">
       <span class="supplier-dot" style="background:${supplierColors[s]}"></span>
-      ${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(importe)</span>' : ''}
-    </label>
-    <button class="delete-supplier" onclick="deleteSupplier('${s.replace(/'/g,"\\'")}')" title="Supprimer ce producteur">&times;</button>
-  </div>`}).join('');
+      ${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(imp.)</span>' : ''}
+    </span>
+    <button class="delete-supplier" onclick="event.stopPropagation();deleteSupplier('${esc}')" title="Supprimer">&times;</button>
+  </div>`;
+}
+
+function dragSupplier(event, name) {
+  event.dataTransfer.setData('text/plain', name);
+  event.target.classList.add('dragging');
+}
+
+function dropSupplier(event, group) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('dragover');
+  const name = event.dataTransfer.getData('text/plain');
+  if (name && suppliers.includes(name)) {
+    supplierGroups[name] = group;
+    renderManageGrid();
+    render();
+    debouncedSave();
+  }
 }
 
 function toggleSupplier(name, enabled) {
@@ -1626,6 +1681,7 @@ function render() {
     html += `<div class="supplier-section">
       <div class="supplier-title" onclick="condOpen['${supplier.replace(/'/g,"\\'")}']=!condOpen['${supplier.replace(/'/g,"\\'")}']; render()">
         <span>${supplier}</span><span class="count">${products.length}</span>
+        ${supplierGroups[supplier]==='prospect' ? '<span style="font-size:0.65rem;background:var(--accent);color:#fff;padding:0.1rem 0.5rem;border-radius:99px;font-weight:600">NOUVEAU</span>' : ''}
         ${cond ? `<span class="cond-toggle ${isOpen?'open':''}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>Conditions</span>` : ''}
       </div>
       ${cond ? `<div class="cond-banner ${isOpen?'open':''}"><div class="cond-grid">
