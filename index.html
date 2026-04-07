@@ -388,6 +388,8 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 .import-status.error{color:#c44}
 .import-btn{padding:0.55rem 1rem;border:2px dashed var(--primary);border-radius:var(--radius);background:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--primary);transition:all 0.2s;display:flex;align-items:center;gap:0.4rem}
 .import-btn:hover{background:#f0faf4}
+.import-btn:disabled{opacity:0.7;cursor:wait}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -465,7 +467,11 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
     <button onclick="disableAllSuppliers()">Tout desactiver</button>
     <button class="import-btn" onclick="openImport()">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Importer un producteur
+      Importer
+    </button>
+    <button class="import-btn" onclick="updateAllImages()" id="btnUpdateImages" style="border-color:var(--accent);color:var(--accent)">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Chercher images
     </button>
   </div>
 </div>
@@ -1021,15 +1027,139 @@ function autoMatchImages(products) {
   return matched;
 }
 
+async function updateAllImages() {
+  const btn = document.getElementById('btnUpdateImages');
+  btn.disabled = true;
+  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="animation:spin 1s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Recherche...';
+
+  // Find suppliers with missing images
+  const supplierProducts = {};
+  DATA.forEach((p, i) => {
+    if (!p.image && !IMAGES[i]) {
+      if (!supplierProducts[p.supplier]) supplierProducts[p.supplier] = [];
+      supplierProducts[p.supplier].push({name: p.name, idx: i});
+    }
+  });
+
+  const suppliersToSearch = Object.keys(supplierProducts);
+  if (suppliersToSearch.length === 0) {
+    btn.innerHTML = 'Toutes les images sont presentes !';
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Chercher images'; }, 2000);
+    return;
+  }
+
+  let totalFound = 0;
+  for (const supplier of suppliersToSearch) {
+    const cond = CONDITIONS[supplier];
+    if (!cond) continue;
+    const website = extractWebsite(cond);
+    if (!website) continue;
+
+    btn.innerHTML = 'Recherche: ' + supplier + '...';
+    const productNames = supplierProducts[supplier].map(p => p.name);
+
+    try {
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/search-images', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url: website, products: productNames})
+      });
+      const data = await resp.json();
+      if (data.images) {
+        supplierProducts[supplier].forEach(p => {
+          if (data.images[p.name]) {
+            DATA[p.idx].image = data.images[p.name];
+            totalFound++;
+          }
+        });
+      }
+    } catch(e) { /* skip this supplier */ }
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = totalFound + ' images trouvees !';
+  if (totalFound > 0) {
+    render();
+    saveCustomProducers();
+    debouncedSave();
+  }
+  setTimeout(() => { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Chercher images'; }, 3000);
+}
+
+function extractWebsite(conditions) {
+  // Try to find a website URL in contact info, notes, or other fields
+  const allText = Object.values(conditions).join(' ');
+  const urlMatch = allText.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9][-a-z0-9]*\.[a-z]{2,}(?:\.[a-z]{2,})?)/i);
+  if (urlMatch) {
+    const domain = urlMatch[0];
+    return domain.startsWith('http') ? domain : 'https://' + domain;
+  }
+  // Try email domain
+  const emailMatch = allText.match(/@([a-z0-9][-a-z0-9]*\.[a-z]{2,})/i);
+  if (emailMatch) return 'https://www.' + emailMatch[1];
+  return null;
+}
+
+async function searchImagesOnline(products, website, statusEl) {
+  const productNames = products.filter(p => !p.image).map(p => p.name);
+  if (productNames.length === 0) { statusEl.textContent = statusEl.textContent.replace('...',''); return; }
+  statusEl.textContent += ' Recherche d\'images sur ' + website + '...';
+  try {
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/search-images', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: website, products: productNames})
+    });
+    const data = await resp.json();
+    if (data.images) {
+      let found = 0;
+      products.forEach(p => {
+        if (!p.image && data.images[p.name]) { p.image = data.images[p.name]; found++; }
+      });
+      const totalImg = products.filter(p => p.image).length;
+      statusEl.textContent = products.length + ' produits — ' + totalImg + ' images trouvees (dont ' + found + ' en ligne)';
+      // Refresh the preview table with new images
+      refreshImportTable(products);
+    } else {
+      statusEl.textContent = statusEl.textContent.replace(/Recherche.*/, '');
+    }
+  } catch(e) {
+    statusEl.textContent = statusEl.textContent.replace(/Recherche.*/, '(recherche images echouee)');
+  }
+}
+
+function refreshImportTable(products) {
+  const tbody = document.getElementById('importTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = products.map((p, i) => `<tr>
+    <td><input value="${p.name.replace(/"/g,'&quot;')}" onchange="importedProducts[${i}].name=this.value"></td>
+    <td><input type="number" step="0.01" value="${p.pa_fournisseur}" style="width:70px" onchange="importedProducts[${i}].pa_fournisseur=+this.value;recalcImportRow(${i})"></td>
+    <td><input type="number" step="0.01" value="${p.pa_ruche}" style="width:70px" onchange="importedProducts[${i}].pa_ruche=+this.value;recalcImportRow(${i})"></td>
+    <td><input type="number" step="0.01" value="${p.pv_client}" style="width:70px" onchange="importedProducts[${i}].pv_client=+this.value"></td>
+    <td><input type="number" step="0.01" value="${p.pv_conseille||''}" style="width:70px" onchange="importedProducts[${i}].pv_conseille=this.value?+this.value:null"></td>
+    <td style="text-align:center;font-weight:600;color:var(--accent)">${p.colisage_qty > 0 ? p.colisage_qty : ''}</td>
+    <td>${p.image ? '<img src="'+p.image+'" style="height:30px;border-radius:3px">' : '<span style="color:#ddd">\u2014</span>'}</td>
+    <td><button class="remove-row" onclick="removeImportRow(${i})">&times;</button></td>
+  </tr>`).join('');
+}
+
 function finishParsing(products, supplierName, conditions) {
   importedProducts = products;
   const status = document.getElementById('importStatus');
   if (products.length === 0) { showImportError('Aucun produit detecte dans le fichier'); return; }
-  // Auto-match images from known catalogs
+  // Auto-match images from known catalogs (instant, offline)
   const imgMatched = autoMatchImages(products);
-  status.textContent = products.length + ' produits detectes' + (imgMatched > 0 ? ' — ' + imgMatched + ' images trouvees' : '');
+  status.textContent = products.length + ' produits detectes' + (imgMatched > 0 ? ' — ' + imgMatched + ' images trouvees' : '') + '...';
   status.classList.add('visible');
   status.classList.remove('error');
+
+  // Try to find supplier website from contact/conditions and search online
+  const website = extractWebsite(conditions);
+  if (website) {
+    searchImagesOnline(products, website, status);
+  } else {
+    status.textContent = status.textContent.replace('...','');
+  }
   document.getElementById('importSupplierName').value = supplierName;
   document.getElementById('importCount').textContent = products.length;
 
