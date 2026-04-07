@@ -347,8 +347,47 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 .order-card .order-total{font-weight:700;font-size:1.1rem;color:var(--primary)}
 .order-card .order-meta{font-size:0.75rem;color:var(--text-light)}
 .header-actions{display:flex;gap:0.5rem}
+
+/* Import modal */
+.import-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:260;justify-content:center;align-items:flex-start;padding:2rem;overflow-y:auto}
+.import-overlay.open{display:flex}
+.import-modal{background:#fff;border-radius:16px;max-width:900px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.import-head{padding:1.5rem;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.import-head h2{font-size:1.2rem;font-weight:700;color:var(--primary-dark)}
+.import-head .close{background:none;border:none;font-size:1.5rem;cursor:pointer;color:#999}
+.drop-zone{margin:1.5rem;padding:3rem 2rem;border:3px dashed #ccc;border-radius:var(--radius);text-align:center;cursor:pointer;transition:all 0.2s;background:#fafaf5}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--primary);background:#f0faf4}
+.drop-zone svg{width:48px;height:48px;color:#ccc;margin-bottom:0.75rem}
+.drop-zone p{color:var(--text-light);font-size:0.9rem}
+.drop-zone .formats{font-size:0.75rem;color:#bbb;margin-top:0.5rem}
+.import-body{padding:0 1.5rem 1.5rem;display:none}
+.import-body.visible{display:block}
+.import-section{margin-bottom:1.5rem}
+.import-section h3{font-size:0.9rem;font-weight:700;color:var(--primary);margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid #eee}
+.import-table{width:100%;border-collapse:collapse;font-size:0.8rem;max-height:300px;overflow-y:auto;display:block}
+.import-table thead{position:sticky;top:0}
+.import-table th{background:#f0faf4;padding:0.5rem;text-align:left;font-weight:600;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px}
+.import-table td{padding:0.4rem 0.5rem;border-bottom:1px solid #f0f0f0}
+.import-table input{width:100%;padding:0.3rem;border:1px solid #ddd;border-radius:4px;font-size:0.8rem}
+.import-table .remove-row{background:none;border:none;color:#ccc;cursor:pointer;font-size:1rem}
+.import-table .remove-row:hover{color:#c44}
+.cond-form{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem}
+.cond-form label{font-size:0.75rem;font-weight:600;color:var(--text-light);display:flex;flex-direction:column;gap:0.25rem}
+.cond-form input,.cond-form textarea{padding:0.4rem 0.6rem;border:1.5px solid #ddd;border-radius:6px;font-size:0.8rem;font-family:inherit}
+.cond-form textarea{min-height:60px;resize:vertical}
+.cond-form .full-width{grid-column:1/-1}
+.import-actions{padding:1rem 1.5rem;border-top:1px solid #eee;display:flex;gap:1rem;justify-content:flex-end}
+.import-actions button{padding:0.6rem 1.5rem;border-radius:var(--radius);font-size:0.85rem;font-weight:600;cursor:pointer}
+.import-actions .btn-cancel{background:#fff;border:2px solid #ccc;color:var(--text)}
+.import-actions .btn-confirm{background:var(--primary);border:none;color:#fff}
+.import-status{padding:0.75rem 1.5rem;font-size:0.85rem;color:var(--primary);display:none}
+.import-status.visible{display:block}
+.import-status.error{color:#c44}
+.import-btn{padding:0.55rem 1rem;border:2px dashed var(--primary);border-radius:var(--radius);background:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--primary);transition:all 0.2s;display:flex;align-items:center;gap:0.4rem}
+.import-btn:hover{background:#f0faf4}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -421,8 +460,61 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
   <div class="manage-actions">
     <button onclick="enableAllSuppliers()">Tout activer</button>
     <button onclick="disableAllSuppliers()">Tout desactiver</button>
+    <button class="import-btn" onclick="openImport()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Importer un producteur
+    </button>
   </div>
 </div>
+
+<!-- Import Modal -->
+<div class="import-overlay" id="importOverlay" onclick="if(event.target===this)closeImport()">
+  <div class="import-modal">
+    <div class="import-head">
+      <h2>Importer un producteur</h2>
+      <button class="close" onclick="closeImport()">&times;</button>
+    </div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      <p>Glissez un fichier ici ou cliquez pour parcourir</p>
+      <div class="formats">Formats acceptes : Excel (.xlsx), CSV (.csv)</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(this.files[0])">
+    </div>
+    <div class="import-status" id="importStatus"></div>
+    <div class="import-body" id="importBody">
+      <div class="import-section">
+        <h3>Nom du producteur</h3>
+        <input type="text" id="importSupplierName" style="width:100%;padding:0.5rem;border:1.5px solid #ddd;border-radius:6px;font-size:0.95rem;font-weight:600" placeholder="Nom du producteur">
+      </div>
+      <div class="import-section">
+        <h3>Produits detectes (<span id="importCount">0</span>)</h3>
+        <div style="max-height:250px;overflow-y:auto">
+          <table class="import-table" id="importTable">
+            <thead><tr><th>Produit</th><th>PA Fourn.</th><th>PA Ruche</th><th>PV Client</th><th>PV Conseil.</th><th></th></tr></thead>
+            <tbody id="importTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="import-section">
+        <h3>Conditions fournisseur</h3>
+        <div class="cond-form">
+          <label>Contact<input type="text" id="impContact" placeholder="email, tel, adresse"></label>
+          <label>Franco / Minimum<input type="text" id="impFranco" placeholder="ex: Franco 200EUR HTVA"></label>
+          <label>Livraison<input type="text" id="impLivraison" placeholder="ex: Livraison 3-5 jours"></label>
+          <label>Paiement<input type="text" id="impPaiement" placeholder="ex: 30 jours"></label>
+          <label class="full-width">Colisage<textarea id="impColisage" placeholder="ex: Carton 12 pcs"></textarea></label>
+          <label>DLC / DDM<input type="text" id="impDlc" placeholder="ex: DDM 12 mois"></label>
+          <label class="full-width">Notes<textarea id="impNotes" placeholder="Notes supplementaires"></textarea></label>
+        </div>
+      </div>
+    </div>
+    <div class="import-actions" id="importActions" style="display:none">
+      <button class="btn-cancel" onclick="closeImport()">Annuler</button>
+      <button class="btn-confirm" onclick="confirmImport()">Valider et ajouter</button>
+    </div>
+  </div>
+</div>
+
 <div class="stats" id="stats"></div>
 <div class="container" id="app"></div>
 
@@ -553,6 +645,7 @@ async function loadState() {
     lang = data.lang || 'fr';
     view = data.view_mode || 'grid';
     compareView = data.compare_view || 'cards';
+    if (data.custom_producers) loadCustomProducers(data.custom_producers);
   } else {
     await sb.from('user_state').insert({ user_id: currentUser.id });
   }
@@ -648,6 +741,334 @@ async function viewOrder(orderId) {
   closeHistory();
 }
 
+/* Import Producer */
+let importedProducts = [];
+
+function openImport() {
+  document.getElementById('importOverlay').classList.add('open');
+  resetImport();
+}
+function closeImport() { document.getElementById('importOverlay').classList.remove('open'); resetImport(); }
+
+function resetImport() {
+  importedProducts = [];
+  document.getElementById('importBody').classList.remove('visible');
+  document.getElementById('importActions').style.display = 'none';
+  document.getElementById('importStatus').classList.remove('visible','error');
+  document.getElementById('importStatus').textContent = '';
+  document.getElementById('importSupplierName').value = '';
+  document.getElementById('importTableBody').innerHTML = '';
+  document.getElementById('importCount').textContent = '0';
+  ['impContact','impFranco','impLivraison','impPaiement','impColisage','impDlc','impNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('fileInput').value = '';
+}
+
+// Drag & drop
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = document.getElementById('dropZone');
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if(e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]); });
+});
+
+function handleFileSelect(file) {
+  if (!file) return;
+  const status = document.getElementById('importStatus');
+  const ext = file.name.split('.').pop().toLowerCase();
+  status.textContent = 'Analyse de ' + file.name + '...';
+  status.classList.add('visible');
+  status.classList.remove('error');
+
+  if (ext === 'csv') {
+    const reader = new FileReader();
+    reader.onload = e => { try { parseCSV(e.target.result, file.name); } catch(err) { showImportError(err.message); } };
+    reader.readAsText(file);
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    const reader = new FileReader();
+    reader.onload = e => { try { parseExcel(e.target.result, file.name); } catch(err) { showImportError(err.message); } };
+    reader.readAsArrayBuffer(file);
+  } else {
+    showImportError('Format non supporte. Utilisez .xlsx ou .csv');
+  }
+}
+
+function showImportError(msg) {
+  const status = document.getElementById('importStatus');
+  status.textContent = msg;
+  status.classList.add('visible','error');
+}
+
+function parseCSV(text, filename) {
+  const lines = text.split('\n').map(l => l.split(/[,;\t]/).map(c => c.trim().replace(/^"|"$/g,'')));
+  const header = lines[0];
+  const rows = lines.slice(1).filter(r => r.some(c => c));
+  const detected = detectColumns(header, rows);
+  const supplierName = filename.replace(/\.(csv|xlsx?)$/i,'').replace(/[_-]/g,' ');
+  finishParsing(detected.products, supplierName, detected.conditions);
+}
+
+function parseExcel(buffer, filename) {
+  const wb = XLSX.read(buffer, {type:'array'});
+  let products = [], conditions = {};
+  const supplierName = filename.replace(/\.(csv|xlsx?)$/i,'').replace(/[_-]/g,' ');
+
+  // Try to find a conditions/info sheet
+  for (const sn of wb.SheetNames) {
+    const snl = sn.toLowerCase();
+    if (snl.includes('condition') || snl.includes('info') || snl.includes('fournisseur')) {
+      const ws = wb.Sheets[sn];
+      const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      conditions = extractConditions(data);
+    }
+  }
+
+  // Parse product sheets
+  for (const sn of wb.SheetNames) {
+    const snl = sn.toLowerCase();
+    if (snl.includes('condition') || snl.includes('info') || snl.includes('fournisseur')) continue;
+    const ws = wb.Sheets[sn];
+    const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if (data.length < 2) continue;
+    // Find header row (first row with multiple non-empty cells)
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(10, data.length); i++) {
+      const nonEmpty = data[i].filter(c => c !== '').length;
+      if (nonEmpty >= 3) { headerIdx = i; break; }
+    }
+    const header = data[headerIdx].map(String);
+    const rows = data.slice(headerIdx + 1).filter(r => r.some(c => c !== ''));
+    const detected = detectColumns(header, rows);
+    products = products.concat(detected.products);
+    if (!conditions.contact && detected.conditions.contact) conditions = detected.conditions;
+  }
+
+  finishParsing(products, supplierName, conditions);
+}
+
+function extractConditions(data) {
+  const cond = {contact:'',franco:'',livraison:'',paiement:'',colisage:'',dlc:'',notes:''};
+  const keywords = {contact:['contact','email','tel'],franco:['franco','minimum','min'],livraison:['livraison','delivery'],paiement:['paiement','payment'],colisage:['colisage','packaging','carton'],dlc:['dlc','ddm','shelf','duree'],notes:['notes','remarques','info']};
+  for (const row of data) {
+    const label = String(row[0]||'').toLowerCase();
+    const value = String(row[1]||row[2]||'');
+    if (!value) continue;
+    for (const [key, kws] of Object.entries(keywords)) {
+      if (kws.some(k => label.includes(k))) { cond[key] = value; break; }
+    }
+  }
+  return cond;
+}
+
+function detectColumns(header, rows) {
+  const h = header.map(c => String(c).toLowerCase());
+  // Detect column indices
+  const nameIdx = h.findIndex(c => c.includes('produit') || c.includes('nom') || c.includes('titre') || c.includes('name') || c.includes('article'));
+  const paIdx = h.findIndex(c => (c.includes('pa') || c.includes('prix') || c.includes('achat') || c.includes('fourn') || c.includes('cost')) && !c.includes('ruche') && !c.includes('client') && !c.includes('vente') && !c.includes('conseil'));
+  const paRucheIdx = h.findIndex(c => c.includes('ruche'));
+  const pvIdx = h.findIndex(c => c.includes('client') || c.includes('vente') || c.includes('pv') || c.includes('ttc'));
+  const pvConseilIdx = h.findIndex(c => c.includes('conseil') || c.includes('recomm') || c.includes('suggest'));
+  const descFrIdx = h.findIndex(c => c.includes('description') || c.includes('desc'));
+  const descNlIdx = h.findIndex((c,i) => i !== descFrIdx && (c.includes('nl') || c.includes('dutch') || c.includes('neder')));
+  const qtyIdx = h.findIndex(c => c.includes('quantit') || c.includes('qty') || c.includes('colisage') || c.includes('carton'));
+
+  // Fallback: if no name column found, use first text column
+  const effNameIdx = nameIdx >= 0 ? nameIdx : h.findIndex((c,i) => {
+    const sample = rows.slice(0,5).map(r => String(r[i]||''));
+    return sample.some(s => s.length > 3 && isNaN(s));
+  });
+
+  // Fallback: if no PA found, find first numeric column
+  const effPaIdx = paIdx >= 0 ? paIdx : h.findIndex((c,i) => {
+    if (i === effNameIdx) return false;
+    const sample = rows.slice(0,5).map(r => parseFloat(r[i]));
+    return sample.filter(n => !isNaN(n) && n > 0).length >= 2;
+  });
+
+  const products = [];
+  for (const row of rows) {
+    const name = String(row[effNameIdx] || '').trim();
+    if (!name || name.length < 2) continue;
+    const pa = parseFloat(row[effPaIdx]) || 0;
+    if (pa <= 0) continue; // Skip rows without price
+    const paRuche = paRucheIdx >= 0 ? (parseFloat(row[paRucheIdx]) || pa * 1.20) : pa * 1.20;
+    const pvClient = pvIdx >= 0 ? (parseFloat(row[pvIdx]) || paRuche * 1.20 * 1.06) : paRuche * 1.20 * 1.06;
+    const pvConseille = pvConseilIdx >= 0 ? (parseFloat(row[pvConseilIdx]) || null) : null;
+    const descFr = descFrIdx >= 0 ? String(row[descFrIdx] || '') : '';
+    const descNl = descNlIdx >= 0 ? String(row[descNlIdx] || '') : '';
+
+    products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl });
+  }
+
+  return { products, conditions: {contact:'',franco:'',livraison:'',paiement:'',colisage:'',dlc:'',notes:''} };
+}
+
+function finishParsing(products, supplierName, conditions) {
+  importedProducts = products;
+  const status = document.getElementById('importStatus');
+  if (products.length === 0) { showImportError('Aucun produit detecte dans le fichier'); return; }
+  status.textContent = products.length + ' produits detectes';
+  status.classList.add('visible');
+  status.classList.remove('error');
+  document.getElementById('importSupplierName').value = supplierName;
+  document.getElementById('importCount').textContent = products.length;
+
+  // Fill conditions form
+  if (conditions) {
+    if (conditions.contact) document.getElementById('impContact').value = conditions.contact;
+    if (conditions.franco) document.getElementById('impFranco').value = conditions.franco;
+    if (conditions.livraison) document.getElementById('impLivraison').value = conditions.livraison;
+    if (conditions.paiement) document.getElementById('impPaiement').value = conditions.paiement;
+    if (conditions.colisage) document.getElementById('impColisage').value = conditions.colisage;
+    if (conditions.dlc) document.getElementById('impDlc').value = conditions.dlc;
+    if (conditions.notes) document.getElementById('impNotes').value = conditions.notes;
+  }
+
+  // Render products table
+  const tbody = document.getElementById('importTableBody');
+  tbody.innerHTML = products.map((p, i) => `<tr>
+    <td><input value="${p.name.replace(/"/g,'&quot;')}" onchange="importedProducts[${i}].name=this.value"></td>
+    <td><input type="number" step="0.01" value="${p.pa_fournisseur}" style="width:70px" onchange="importedProducts[${i}].pa_fournisseur=+this.value;recalcImportRow(${i})"></td>
+    <td><input type="number" step="0.01" value="${p.pa_ruche}" style="width:70px" onchange="importedProducts[${i}].pa_ruche=+this.value;recalcImportRow(${i})"></td>
+    <td><input type="number" step="0.01" value="${p.pv_client}" style="width:70px" onchange="importedProducts[${i}].pv_client=+this.value"></td>
+    <td><input type="number" step="0.01" value="${p.pv_conseille||''}" style="width:70px" onchange="importedProducts[${i}].pv_conseille=this.value?+this.value:null"></td>
+    <td><button class="remove-row" onclick="removeImportRow(${i})">&times;</button></td>
+  </tr>`).join('');
+
+  document.getElementById('importBody').classList.add('visible');
+  document.getElementById('importActions').style.display = 'flex';
+}
+
+function recalcImportRow(i) {
+  const p = importedProducts[i];
+  p.pa_ruche = Math.round(p.pa_fournisseur * 1.20 * 100) / 100;
+  p.pv_client = Math.round(p.pa_ruche * 1.20 * 1.06 * 100) / 100;
+  // Re-render row
+  const rows = document.getElementById('importTableBody').querySelectorAll('tr');
+  if (rows[i]) {
+    rows[i].querySelectorAll('input')[2].value = p.pa_ruche;
+    rows[i].querySelectorAll('input')[3].value = p.pv_client;
+  }
+}
+
+function removeImportRow(i) {
+  importedProducts.splice(i, 1);
+  finishParsing(importedProducts, document.getElementById('importSupplierName').value,
+    {contact:document.getElementById('impContact').value,franco:document.getElementById('impFranco').value,livraison:document.getElementById('impLivraison').value,paiement:document.getElementById('impPaiement').value,colisage:document.getElementById('impColisage').value,dlc:document.getElementById('impDlc').value,notes:document.getElementById('impNotes').value});
+}
+
+function confirmImport() {
+  const supplierName = document.getElementById('importSupplierName').value.trim();
+  if (!supplierName) { showImportError('Entrez le nom du producteur'); return; }
+  if (importedProducts.length === 0) { showImportError('Aucun produit a importer'); return; }
+
+  // Add to DATA
+  const startIdx = DATA.length;
+  importedProducts.forEach(p => {
+    DATA.push({
+      supplier: supplierName,
+      name: p.name,
+      desc_fr: p.desc_fr || '',
+      desc_nl: p.desc_nl || '',
+      pa_fournisseur: p.pa_fournisseur,
+      pa_ruche: p.pa_ruche,
+      pv_client: p.pv_client,
+      pv_conseille: p.pv_conseille
+    });
+  });
+
+  // Add to CONDITIONS
+  CONDITIONS[supplierName] = {
+    contact: document.getElementById('impContact').value || '',
+    franco: document.getElementById('impFranco').value || '\u2014',
+    livraison: document.getElementById('impLivraison').value || '\u2014',
+    paiement: document.getElementById('impPaiement').value || '\u2014',
+    colisage: document.getElementById('impColisage').value || '',
+    dlc: document.getElementById('impDlc').value || '\u2014',
+    notes: document.getElementById('impNotes').value || ''
+  };
+
+  // Add to COLISAGE if colisage info provided
+  const colisageText = document.getElementById('impColisage').value;
+  if (colisageText) {
+    const match = colisageText.match(/(\d+)/);
+    if (match) {
+      COLISAGE[supplierName] = [{match: /./, qty: parseInt(match[1]), label: colisageText.split('\n')[0].trim()}];
+    }
+  }
+
+  // Rebuild suppliers list
+  if (!suppliers.includes(supplierName)) {
+    suppliers.push(supplierName);
+    const colors = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0077b6','#e76f51','#264653','#f4a261'];
+    supplierColors[supplierName] = colors[suppliers.length % colors.length];
+  }
+
+  // Save custom producers to Supabase
+  saveCustomProducers();
+
+  // Re-init filters and render
+  const filtersEl = document.getElementById('supplierFilters');
+  filtersEl.innerHTML = '';
+  const btnAll = document.createElement('button');
+  btnAll.className = 'filter-btn active';
+  btnAll.textContent = 'Tous';
+  btnAll.onclick = () => { activeSupplier = null; render(); };
+  filtersEl.appendChild(btnAll);
+  suppliers.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = s;
+    btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
+    filtersEl.appendChild(btn);
+  });
+  renderManageGrid();
+
+  closeImport();
+  activeSupplier = supplierName;
+  render();
+  debouncedSave();
+}
+
+async function saveCustomProducers() {
+  if (!currentUser) return;
+  // Collect all non-original suppliers (indices >= original DATA length would work,
+  // but simpler: store the full custom additions)
+  const custom = {};
+  suppliers.forEach(s => {
+    if (!ORIGINAL_SUPPLIERS.has(s)) {
+      custom[s] = {
+        products: DATA.filter(p => p.supplier === s),
+        conditions: CONDITIONS[s] || {},
+        colisage: COLISAGE[s] || [],
+        color: supplierColors[s]
+      };
+    }
+  });
+  await sb.from('user_state').update({ custom_producers: custom }).eq('user_id', currentUser.id);
+}
+
+function loadCustomProducers(customData) {
+  if (!customData) return;
+  for (const [supplierName, info] of Object.entries(customData)) {
+    if (suppliers.includes(supplierName)) continue;
+    // Add products
+    info.products.forEach(p => DATA.push(p));
+    // Add conditions
+    if (info.conditions) CONDITIONS[supplierName] = info.conditions;
+    // Add colisage
+    if (info.colisage && info.colisage.length) {
+      COLISAGE[supplierName] = info.colisage.map(r => ({...r, match: new RegExp(r.match?.source || '.')}));
+    }
+    // Add supplier
+    suppliers.push(supplierName);
+    supplierColors[supplierName] = info.color || '#606c38';
+  }
+}
+
 let lang = 'fr', view = 'grid', activeSupplier = null, searchTerm = '';
 const cart = {}; // { idx: qty }
 const disabledSuppliers = new Set();
@@ -657,7 +1078,7 @@ const condOpen = {};
 const simOpen = {};
 const simValues = {}; // { idx: customPaRuche }
 
-const IMAGES = {0:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-31.png",1:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",2:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",3:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",4:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",5:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",6:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",7:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",8:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-31.png",9:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-30.png",10:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-29.png",11:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",12:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",13:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",14:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",15:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",16:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-34.png",17:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-32.png",18:"https://www.payzan.fr/wp-content/uploads/2024/07/BB0A0882-scaled.jpg",19:"https://www.payzan.fr/wp-content/uploads/2024/07/BB0A0882-scaled.jpg",38:"https://pipaillon.com/assets/3d-confiture-abricot-BOFXEeGt.png",39:"https://pipaillon.com/assets/3d-confiture-cerise-Cti4S6Bb.png",40:"https://pipaillon.com/assets/3d-confiture-fraise-BemE2ywd.png",41:"https://pipaillon.com/assets/3d-confiture-framboise-2sOnRtKJ.png",42:"https://pipaillon.com/assets/3d-confiture-fruits-des-bois-CaLStLBq.png",43:"https://pipaillon.com/assets/3d-confiture-fruits-rouges-B6EuVlbM.png",44:"https://pipaillon.com/assets/3d-confiture-myrtille-C_H2dciQ.png",45:"https://pipaillon.com/assets/3d-confiture-orange-BuOIBXCr.png",46:"https://pipaillon.com/assets/3d-confiture-rhubarbe-sfzx-nsR.png",47:"https://pipaillon.com/assets/3d-signature-figue-romarin-DI81Q7LX.png",48:"https://pipaillon.com/assets/3d-signature-clementine-CQXMdM28.png",49:"https://pipaillon.com/assets/3d-signature-pomme-poire-BHL5weIx.png",50:"https://pipaillon.com/assets/3d-signature-prune-chai-Bhl1iH6I.png",51:"https://pipaillon.com/assets/3d-signature-poire-gingembre-CtKc8gWV.png",52:"https://pipaillon.com/assets/pickle-concombre-new-CkujOGKC.png",53:"https://pipaillon.com/assets/pickle-fenouil-new-BKyqjTOI.png",54:"https://pipaillon.com/assets/pickle-betterave-new-DXPRYcb1.png",55:"https://pipaillon.com/assets/pickle-oignon-rouge-6Trw8lq3.png",56:"https://pipaillon.com/assets/citron-confit-yellow-submarine-new-Bf9xwS1c.jpeg",164:"https://balieshop.be/cdn/shop/products/confituur_aardbei.jpg?v=1590177348",165:"https://balieshop.be/cdn/shop/products/confituur_framboos.jpg?v=1590177579",166:"https://balieshop.be/cdn/shop/products/confituur_abrikoos.jpg?v=1590177453",168:"https://balieshop.be/cdn/shop/products/confituur_kersen.jpg?v=1590177596",170:"https://balieshop.be/cdn/shop/products/confituur_sinaasappel.jpg?v=1590177720",171:"https://balieshop.be/cdn/shop/products/confituur_vijgen.jpg?v=1590177739",172:"https://balieshop.be/cdn/shop/products/confituur_aardbei_framboos.jpg?v=1590177303",20:"https://bonbonsdegrandmere.be/613-medium_default/cacahuetes-caramelisees.jpg",21:"https://bonbonsdegrandmere.be/614-medium_default/cacahuetes-caramelisees.jpg",22:"https://bonbonsdegrandmere.be/615-medium_default/cacahuetes-caramelisees.jpg",23:"https://bonbonsdegrandmere.be/616-medium_default/graines-de-courge-caramelisees.jpg",24:"https://bonbonsdegrandmere.be/652-medium_default/noix-de-cajou-cannelle-de-sumatra.jpg",25:"https://bonbonsdegrandmere.be/638-medium_default/noix-de-grenoble-caramelisees.jpg",26:"https://bonbonsdegrandmere.be/645-medium_default/noix-de-pecan-caramelisees-fleur-de-sel.jpg",27:"https://bonbonsdegrandmere.be/644-medium_default/noix-de-macadamia-caramelisees-legerement-parfumees-a-la-fleur-d-oranger.jpg",28:"https://bonbonsdegrandmere.be/651-medium_default/pistaches-d-andalousie-caramelisees-sel-de-l-ile-de-re.jpg",29:"https://bonbonsdegrandmere.be/528-medium_default/cuberdons-tradtionnels-a-la-framboise.jpg",30:"https://bonbonsdegrandmere.be/527-medium_default/cuberdons-mix.jpg",31:"https://bonbonsdegrandmere.be/274-medium_default/guimauves-au-cuberdon.jpg",32:"https://bonbonsdegrandmere.be/589-medium_default/melange-de-pulpe-de-fruits.jpg",33:"https://bonbonsdegrandmere.be/593-medium_default/ananas-rings.jpg",34:"https://bonbonsdegrandmere.be/586-medium_default/babeluttes.jpg",35:"https://bonbonsdegrandmere.be/594-medium_default/nougats-tendres.jpg",36:"https://bonbonsdegrandmere.be/594-medium_default/nougats-tendres.jpg",37:"https://bonbonsdegrandmere.be/614-medium_default/cacahuetes-caramelisees.jpg",61:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_10.png?v=1761646289",62:"https://www.karmakarma.be/cdn/shop/files/Ontwerp_zonder_titel_11.png?v=1761646478",63:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_9.png?v=1761646319",64:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_16.png?v=1761729671",65:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_21.png?v=1761731344",66:"https://www.karmakarma.be/cdn/shop/files/Ontwerp_zonder_titel_d3bab683-5826-4dfc-b4d7-ada4d0a4714c.png?v=1761646501",67:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_20.png?v=1761731155",68:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_13.png?v=1761646875",69:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_5.png?v=1761645070",70:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_8.png?v=1761646081",71:"https://www.karmakarma.be/cdn/shop/files/amandel_granola_beige.png?v=1751961743",72:"https://www.karmakarma.be/cdn/shop/files/choco_granola_beige.png?v=1751961798",73:"https://www.karmakarma.be/cdn/shop/files/Amandel_VanilleBioGranola_1kg.png?v=1759404835",74:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_3.png?v=1761642542",75:"https://www.karmakarma.be/cdn/shop/files/Levi_6_c5b92c7f-9363-4aea-87f9-a5a0f2df2425.png?v=1774597778",76:"https://www.karmakarma.be/cdn/shop/files/Levi_5_f5c85ad9-15a9-48e0-8a67-63bd1c5e55f7.png?v=1774597752",77:"https://www.karmakarma.be/cdn/shop/files/Levi_81769011-790a-4c28-b490-e9b52d883fae.png?v=1774597982",78:"https://b2b.karmakarma.be/cdn/shop/files/4_f3209ea3-57a7-446c-9c1f-6d0fb7a665eb.png?v=1768230436",79:"https://b2b.karmakarma.be/cdn/shop/files/6.png?v=1768230297",80:"https://b2b.karmakarma.be/cdn/shop/files/5_5405c8ab-790b-4f6d-a2c2-e74ef9578ac6.png?v=1768230189",81:"https://www.karmakarma.be/cdn/shop/files/Grey_Modern_Instagram_Portrait_Picture_2500_x_2500_px_2.png?v=1768230527",82:"https://www.cdubelge.be/web/image/product.template/3598/image_512/MELO%20ARTISAN%20FONDANT%20PF",83:"https://www.cdubelge.be/web/image/product.template/3465/image_512/MELO%20ARTISAN%20TRADITION%20LAIT%20PF",84:"https://www.cdubelge.be/web/image/product.template/3462/image_512/%5B139%5D%20MELO%20ARTISAN%20ASSORTIMENT%20PF",85:"https://www.cdubelge.be/web/image/product.template/3480/image_512/ORANGETTES%20NOIRES%20PF",86:"https://www.cdubelge.be/web/image/product.template/3481/image_512/ORANGETTES%20LAIT%20PF",87:"https://www.cdubelge.be/web/image/product.template/3438/image_512/CITRONNETTES%20PF",88:"https://www.cdubelge.be/web/image/product.template/3443/image_512/GINGEMBRETTES%20PF",89:"https://www.cdubelge.be/web/image/product.template/3455/image_512/LE%20FONDANT%20%28LARD%29%20PF",90:"https://www.cdubelge.be/web/image/product.template/3457/image_512/LE%20LAIT%20%20%28LARD%29%20PF",91:"https://www.cdubelge.be/web/image/product.template/3461/image_512/LE%20SPECULOOS%20%28LARD%29%20PF",92:"https://www.cdubelge.be/web/image/product.template/3453/image_512/LE%20CARAMEL%20PF",93:"https://www.cdubelge.be/web/image/product.template/3442/image_512/CUBERDONS%20ORIGINAL%20%221954%22%20PF",94:"https://www.cdubelge.be/web/image/product.template/3442/image_512/CUBERDONS%20ORIGINAL%20%221954%22%20PF",95:"https://www.cdubelge.be/web/image/product.template/3476/image_512/NOUGAT%20AMANDE%20PF",96:"https://www.cdubelge.be/web/image/product.template/3477/image_512/NOUGAT%20CARAMEL%20PF",97:"https://www.cdubelge.be/web/image/product.template/3479/image_512/NOUGAT%20SPECULOOS%20PF",98:"https://www.cdubelge.be/web/image/product.template/3466/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20FONDANT%20PF",99:"https://www.cdubelge.be/web/image/product.template/3469/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20LAIT%20PF",100:"https://www.cdubelge.be/web/image/product.template/3468/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20BLANC%20PF",101:"https://www.cdubelge.be/web/image/product.template/3467/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20ASSORTIMENT%20PF",102:"https://www.cdubelge.be/web/image/product.template/3597/image_512/CHOUCHOU%20PF",103:"https://www.cdubelge.be/web/image/product.template/3597/image_512/CHOUCHOU%20PF",144:"https://shop.interbio.be/3796-home_default/equilibre-huile-de-lin-250ml.jpg",145:"https://shop.interbio.be/3604-home_default/equilibre-huile-de-tournesol-oleique-500ml.jpg",146:"https://shop.interbio.be/2428-home_default/equilibre-huile-de-colza-500ml.jpg",147:"https://shop.interbio.be/3776-home_default/apple-petillant-can-33cl.jpg",148:"https://shop.interbio.be/3266-home_default/kombucha-brut-canette-25cl.jpg",149:"https://shop.interbio.be/3262-home_default/kombucha-ginger-et-passion-bout-33cl.jpg",150:"https://shop.interbio.be/3263-home_default/kombucha-strawb-et-raspberry-bout-33cl.jpg",151:"https://shop.interbio.be/3265-home_default/kombucha-verbena-et-lime-bout-33cl.jpg",152:"https://shop.interbio.be/3264-home_default/kombucha-citrus-et-hop-bout-33cl.jpg",153:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",154:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",155:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",156:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",157:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",158:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres.png",159:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png",160:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png",161:"https://biscuiterielatour.com/wp-content/uploads/2022/03/gaufres-4H.png",162:"https://biscuiterielatour.com/wp-content/uploads/2022/02/gaufres-bio-la-tour.jpg",163:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png"};
+const IMAGES = {0:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-31.png",1:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",2:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",3:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",4:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",5:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",6:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",7:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",8:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-31.png",9:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-30.png",10:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-29.png",11:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",12:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",13:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",14:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",15:"https://www.payzan.fr/wp-content/uploads/2025/06/BB0A0969-scaled.png",16:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-34.png",17:"https://www.payzan.fr/wp-content/uploads/2023/03/Fichier-32.png",18:"https://www.payzan.fr/wp-content/uploads/2024/07/BB0A0882-scaled.jpg",19:"https://www.payzan.fr/wp-content/uploads/2024/07/BB0A0882-scaled.jpg",38:"https://pipaillon.com/assets/3d-confiture-abricot-BOFXEeGt.png",39:"https://pipaillon.com/assets/3d-confiture-cerise-Cti4S6Bb.png",40:"https://pipaillon.com/assets/3d-confiture-fraise-BemE2ywd.png",41:"https://pipaillon.com/assets/3d-confiture-framboise-2sOnRtKJ.png",42:"https://pipaillon.com/assets/3d-confiture-fruits-des-bois-CaLStLBq.png",43:"https://pipaillon.com/assets/3d-confiture-fruits-rouges-B6EuVlbM.png",44:"https://pipaillon.com/assets/3d-confiture-myrtille-C_H2dciQ.png",45:"https://pipaillon.com/assets/3d-confiture-orange-BuOIBXCr.png",46:"https://pipaillon.com/assets/3d-confiture-rhubarbe-sfzx-nsR.png",47:"https://pipaillon.com/assets/3d-signature-figue-romarin-DI81Q7LX.png",48:"https://pipaillon.com/assets/3d-signature-clementine-CQXMdM28.png",49:"https://pipaillon.com/assets/3d-signature-pomme-poire-BHL5weIx.png",50:"https://pipaillon.com/assets/3d-signature-prune-chai-Bhl1iH6I.png",51:"https://pipaillon.com/assets/3d-signature-poire-gingembre-CtKc8gWV.png",52:"https://pipaillon.com/assets/pickle-concombre-new-CkujOGKC.png",53:"https://pipaillon.com/assets/pickle-fenouil-new-BKyqjTOI.png",54:"https://pipaillon.com/assets/pickle-betterave-new-DXPRYcb1.png",55:"https://pipaillon.com/assets/pickle-oignon-rouge-6Trw8lq3.png",56:"https://pipaillon.com/assets/citron-confit-yellow-submarine-new-Bf9xwS1c.jpeg",164:"https://balieshop.be/cdn/shop/products/confituur_aardbei.jpg?v=1590177348",165:"https://balieshop.be/cdn/shop/products/confituur_framboos.jpg?v=1590177579",166:"https://balieshop.be/cdn/shop/products/confituur_abrikoos.jpg?v=1590177453",168:"https://balieshop.be/cdn/shop/products/confituur_kersen.jpg?v=1590177596",170:"https://balieshop.be/cdn/shop/products/confituur_sinaasappel.jpg?v=1590177720",171:"https://balieshop.be/cdn/shop/products/confituur_vijgen.jpg?v=1590177739",172:"https://balieshop.be/cdn/shop/products/confituur_aardbei_framboos.jpg?v=1590177303",20:"https://bonbonsdegrandmere.be/613-medium_default/cacahuetes-caramelisees.jpg",21:"https://bonbonsdegrandmere.be/614-medium_default/cacahuetes-caramelisees.jpg",22:"https://bonbonsdegrandmere.be/615-medium_default/cacahuetes-caramelisees.jpg",23:"https://bonbonsdegrandmere.be/616-medium_default/graines-de-courge-caramelisees.jpg",24:"https://bonbonsdegrandmere.be/652-medium_default/noix-de-cajou-cannelle-de-sumatra.jpg",25:"https://bonbonsdegrandmere.be/638-medium_default/noix-de-grenoble-caramelisees.jpg",26:"https://bonbonsdegrandmere.be/645-medium_default/noix-de-pecan-caramelisees-fleur-de-sel.jpg",27:"https://bonbonsdegrandmere.be/644-medium_default/noix-de-macadamia-caramelisees-legerement-parfumees-a-la-fleur-d-oranger.jpg",28:"https://bonbonsdegrandmere.be/651-medium_default/pistaches-d-andalousie-caramelisees-sel-de-l-ile-de-re.jpg",29:"https://bonbonsdegrandmere.be/528-medium_default/cuberdons-tradtionnels-a-la-framboise.jpg",30:"https://bonbonsdegrandmere.be/527-medium_default/cuberdons-mix.jpg",31:"https://bonbonsdegrandmere.be/274-medium_default/guimauves-au-cuberdon.jpg",32:"https://bonbonsdegrandmere.be/589-medium_default/melange-de-pulpe-de-fruits.jpg",33:"https://bonbonsdegrandmere.be/593-medium_default/ananas-rings.jpg",34:"https://bonbonsdegrandmere.be/586-medium_default/babeluttes.jpg",35:"https://bonbonsdegrandmere.be/594-medium_default/nougats-tendres.jpg",36:"https://bonbonsdegrandmere.be/594-medium_default/nougats-tendres.jpg",37:"https://bonbonsdegrandmere.be/614-medium_default/cacahuetes-caramelisees.jpg",61:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_10.png?v=1761646289",62:"https://www.karmakarma.be/cdn/shop/files/Ontwerp_zonder_titel_11.png?v=1761646478",63:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_9.png?v=1761646319",64:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_16.png?v=1761729671",65:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_21.png?v=1761731344",66:"https://www.karmakarma.be/cdn/shop/files/Ontwerp_zonder_titel_d3bab683-5826-4dfc-b4d7-ada4d0a4714c.png?v=1761646501",67:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_20.png?v=1761731155",68:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_13.png?v=1761646875",69:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_5.png?v=1761645070",70:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_8.png?v=1761646081",71:"https://www.karmakarma.be/cdn/shop/files/amandel_granola_beige.png?v=1751961743",72:"https://www.karmakarma.be/cdn/shop/files/choco_granola_beige.png?v=1751961798",73:"https://www.karmakarma.be/cdn/shop/files/Amandel_VanilleBioGranola_1kg.png?v=1759404835",74:"https://www.karmakarma.be/cdn/shop/files/Ontwerpzondertitel_3.png?v=1761642542",75:"https://www.karmakarma.be/cdn/shop/files/Levi_6_c5b92c7f-9363-4aea-87f9-a5a0f2df2425.png?v=1774597778",76:"https://www.karmakarma.be/cdn/shop/files/Levi_5_f5c85ad9-15a9-48e0-8a67-63bd1c5e55f7.png?v=1774597752",77:"https://www.karmakarma.be/cdn/shop/files/Levi_81769011-790a-4c28-b490-e9b52d883fae.png?v=1774597982",78:"https://b2b.karmakarma.be/cdn/shop/files/4_f3209ea3-57a7-446c-9c1f-6d0fb7a665eb.png?v=1768230436",79:"https://b2b.karmakarma.be/cdn/shop/files/6.png?v=1768230297",80:"https://b2b.karmakarma.be/cdn/shop/files/5_5405c8ab-790b-4f6d-a2c2-e74ef9578ac6.png?v=1768230189",81:"https://www.karmakarma.be/cdn/shop/files/Grey_Modern_Instagram_Portrait_Picture_2500_x_2500_px_2.png?v=1768230527",82:"https://www.cdubelge.be/web/image/product.template/3598/image_512/MELO%20ARTISAN%20FONDANT%20PF",83:"https://www.cdubelge.be/web/image/product.template/3465/image_512/MELO%20ARTISAN%20TRADITION%20LAIT%20PF",84:"https://www.cdubelge.be/web/image/product.template/3462/image_512/%5B139%5D%20MELO%20ARTISAN%20ASSORTIMENT%20PF",85:"https://www.cdubelge.be/web/image/product.template/3480/image_512/ORANGETTES%20NOIRES%20PF",86:"https://www.cdubelge.be/web/image/product.template/3481/image_512/ORANGETTES%20LAIT%20PF",87:"https://www.cdubelge.be/web/image/product.template/3438/image_512/CITRONNETTES%20PF",88:"https://www.cdubelge.be/web/image/product.template/3443/image_512/GINGEMBRETTES%20PF",89:"https://www.cdubelge.be/web/image/product.template/3455/image_512/LE%20FONDANT%20%28LARD%29%20PF",90:"https://www.cdubelge.be/web/image/product.template/3457/image_512/LE%20LAIT%20%20%28LARD%29%20PF",91:"https://www.cdubelge.be/web/image/product.template/3461/image_512/LE%20SPECULOOS%20%28LARD%29%20PF",92:"https://www.cdubelge.be/web/image/product.template/3453/image_512/LE%20CARAMEL%20PF",93:"https://www.cdubelge.be/web/image/product.template/3442/image_512/CUBERDONS%20ORIGINAL%20%221954%22%20PF",94:"https://www.cdubelge.be/web/image/product.template/3442/image_512/CUBERDONS%20ORIGINAL%20%221954%22%20PF",95:"https://www.cdubelge.be/web/image/product.template/3476/image_512/NOUGAT%20AMANDE%20PF",96:"https://www.cdubelge.be/web/image/product.template/3477/image_512/NOUGAT%20CARAMEL%20PF",97:"https://www.cdubelge.be/web/image/product.template/3479/image_512/NOUGAT%20SPECULOOS%20PF",98:"https://www.cdubelge.be/web/image/product.template/3466/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20FONDANT%20PF",99:"https://www.cdubelge.be/web/image/product.template/3469/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20LAIT%20PF",100:"https://www.cdubelge.be/web/image/product.template/3468/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20BLANC%20PF",101:"https://www.cdubelge.be/web/image/product.template/3467/image_512/MENDIANTS%20ARTISAN%20CHOCOLAT%20ASSORTIMENT%20PF",102:"https://www.cdubelge.be/web/image/product.template/3597/image_512/CHOUCHOU%20PF",103:"https://www.cdubelge.be/web/image/product.template/3597/image_512/CHOUCHOU%20PF",104:"images/bn_p1_img0.png",105:"images/bn_p4_img2.png",106:"images/bn_p4_img4.png",107:"images/bn_p4_img1.png",108:"images/bn_p4_img13.png",109:"images/bn_p4_img5.png",110:"images/bn_p4_img3.png",111:"images/bn_p4_img16.png",112:"images/bn_p4_img17.png",113:"images/bn_p4_img5.png",114:"images/bn_p4_img12.png",115:"images/bn_p4_img11.png",116:"images/bn_p4_img1.png",117:"images/bn_p4_img15.png",118:"images/bn_p4_img14.png",119:"images/bn_p4_img4.png",120:"images/bn_p4_img4.png",121:"images/bn_p4_img9.png",122:"images/bn_p4_img7.png",123:"images/bn_p4_img6.png",124:"images/bn_p4_img10.png",125:"images/bn_p4_img8.png",126:"images/bn_p5_img4.png",127:"images/bn_p5_img5.png",128:"images/bn_p3_img1.png",129:"images/bn_p3_img0.png",144:"https://shop.interbio.be/3796-home_default/equilibre-huile-de-lin-250ml.jpg",145:"https://shop.interbio.be/3604-home_default/equilibre-huile-de-tournesol-oleique-500ml.jpg",146:"https://shop.interbio.be/2428-home_default/equilibre-huile-de-colza-500ml.jpg",147:"https://shop.interbio.be/3776-home_default/apple-petillant-can-33cl.jpg",148:"https://shop.interbio.be/3266-home_default/kombucha-brut-canette-25cl.jpg",149:"https://shop.interbio.be/3262-home_default/kombucha-ginger-et-passion-bout-33cl.jpg",150:"https://shop.interbio.be/3263-home_default/kombucha-strawb-et-raspberry-bout-33cl.jpg",151:"https://shop.interbio.be/3265-home_default/kombucha-verbena-et-lime-bout-33cl.jpg",152:"https://shop.interbio.be/3264-home_default/kombucha-citrus-et-hop-bout-33cl.jpg",153:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",154:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",155:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",156:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",157:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres-7.png",158:"https://biscuiterielatour.com/wp-content/uploads/2022/03/Gauffres.png",159:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png",160:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png",161:"https://biscuiterielatour.com/wp-content/uploads/2022/03/gaufres-4H.png",162:"https://biscuiterielatour.com/wp-content/uploads/2022/02/gaufres-bio-la-tour.jpg",163:"https://biscuiterielatour.com/wp-content/uploads/2022/03/display-chocolat.png"};
 
 // Colisage rules: supplier → [{match: regex|string, qty: number, label: string}]
 const COLISAGE = {
@@ -737,6 +1158,7 @@ function getColisage(supplier, productName) {
 const CONDITIONS = {"Ferme des 3 Rois":{"contact":"comptabilite@fermedes3rois.fr\nTel: 02-37-24-19-46\n271 rue du Dauphin, Le Puiset\n28310 Janville en Beauce, France","franco":"\u2014","livraison":"Palette(s) non consign\u00e9e(s)","paiement":"\u2014","colisage":"Cartons Pr\u00eat \u00e0 Vendre\n6 ou 2 cartons selon r\u00e9f.","dlc":"Produits BIO FR-BIO-09","notes":"Marque Tr\u00e9sors de Beauce\nL\u00e9gumineuses, graines, quinoa BIO\nSiret: 84444588200021\nTVA: FR07844445882"},"Payzan":{"contact":"tristan@payzan.fr\nTel: 06 46 66 56 47\nFerme en Picardie (Aisne)","franco":"Franco 300\u20ac HT","livraison":"Livraison 4-7 jours","paiement":"\u2014","colisage":"Tartinables 90g: par 10\nTartinables 190g: par 12 ou 24\nChips 75g: par 16\nGraines 90g: par 24","dlc":"DLC 18 mois en moyenne","notes":"Remise -8% \u00e0 partir de 500\u20ac HT\nProduits BIO certifi\u00e9s\nTerroirs Hauts-de-France\nPanachage possible par carton"},"Bonbons de Grand-M\u00e8re":{"contact":"Christophe Mausen\nchristophe@bonbonsdegrandmere.be\nTel: +32 496 55 92 52\nRue des Alouettes 81\n4041 Herstal (Milmort), Belgique","franco":"Franco 150\u20ac HTVA","livraison":"\u2014","paiement":"\u2014","colisage":"Olivettes/Confiseries: carton 6 pcs\nPerlettes BIO: carton 8 pcs\nBonbons miel: display 10 pcs\nPaniers cadeaux: carton 50 pcs","dlc":"Variable selon produit:\n6 mois \u00e0 24 mois\nCuberdons: 16 semaines","notes":"Confiserie artisanale depuis 1895\nSeule confiserie BIO certifi\u00e9e de Belgique\nCuisson \u00e0 l\u2019ancienne en chaudrons cuivre\nTVA: 0721 687 225"},"Pipaillon":{"contact":"Pipaillon Conserverie\nBruxelles, Belgique\npipaillon.com","franco":"\u2014","livraison":"DLV 3 \u00e0 9 mois selon produit","paiement":"\u2014","colisage":"Confitures 210g: carton 12 pcs\nPickles 110g: carton 12 pcs\nCitrons confits 300g: carton 6 pcs\nJus 500ml: carton 6 pcs","dlc":"DDM 6 \u00e0 24 mois\nDLV 3 \u00e0 9 mois","notes":"Conserverie artisanale BIO\nFond\u00e9e en 2014 \u00e0 Bruxelles\nCuisson en chaudrons cuivre\nPrix unique toutes confitures: 4,15\u20ac"},"KarmaKarma":{"contact":"b2b.karmakarma.be\nKarmaKarma\nBelgique","franco":"Franco 200\u20ac HTVA","livraison":"Livraison 2-3 jours ouvrables","paiement":"Paiement en ligne ou virement","colisage":"Porridge 300g: carton 8 pcs\nOat Cups 85g: carton 12 pcs\nGranola 300g: carton 8 pcs\nGranola 1kg: carton 4 ou 6 pcs\nCookies 100g: carton 18 pcs\nCookies 700g: carton 6 pcs","dlc":"\u2014","notes":"100% ORGANIC / BIO\nThe Better Cookie: Nutri-Score A\nTVA 6%\nCommande en cartons complets uniquement\nCommande via B2B store en ligne"},"C du Belge":{"contact":"Caroline Machoel\nc.machoel@cdubelge.be\nTel: 0471/640743\nC du Belge SPRL","franco":"\u2014","livraison":"\u2014","paiement":"\u2014","colisage":"Sachets: carton 15 pcs\n(sauf Bombettes: 15 pcs\net Cornets: 8 pcs)","dlc":"Variable: 3 mois \u00e0 2 ans\nLards: 8-9 semaines\nCuberdons: 9 semaines\nChocolat: 4-9 mois","notes":"Confiseries artisanales belges\nMarque \u0022Douceurs du Pays\u0022\nTarif Pro 2024\nGamme P\u00e2ques et fin d\u2019ann\u00e9e disponible"},"Biscuiterie Namuroise":{"contact":"info@labiscuiterienamuroise.be\nTel: 0472/68.20.35\nChauss\u00e9e de Charleroi 77\n5190 Jemeppe-sur-Sambre\nwww.labiscuiterienamuroise.be","franco":"Franco 60 sachets\nou 6 kg vrac","livraison":"\u2014","paiement":"1\u00e8re commande: comptant\nSuivantes: 30 jours","colisage":"Sachets sucr\u00e9s 100g: 15/caisse\nSachets sal\u00e9s 100g: 15/caisse\nVrac 1kg: 2 sachets/caisse\nPacks 200g: par 4\nBo\u00eete m\u00e9tal 500g: par 4\nPetite Bo\u00eete 110g: par 12","dlc":"DDM 6 mois\n(sachets scell\u00e9s)","notes":"Inspir\u00e9e de 1908\nDisponible en version BIO au m\u00eame prix\nLabel Farm for Good\nNouveaux emballages color\u00e9s\nStarting pack conseill\u00e9:\n5x15 sachets (marquises, moques, caramel, palais, mix)"},"D\u00e9sir\u00e9 de Lille":{"contact":"D\u00e9sir\u00e9 de Lille\nFond\u00e9e en 1903\nLi\u00e8ge, Belgique","franco":"Franco 200\u20ac HTVA\n(sinon +50\u20ac livraison)","livraison":"\u2014","paiement":"\u2014","colisage":"Lacquemants: 20 bo\u00eetes/carton\nLacquemants glac\u00e9s: 25 ou 50 pcs\nSirop: 20 pcs/carton\nChouchous/Nougats: 20 ou 50 pcs\nCanettes glac\u00e9es: 40 pcs/carton\n(mix parfums possible)","dlc":"Lacquemants frais: 21 jours\nLacquemants glac\u00e9s: 1 an\nSirop: 6 mois\nChouchous: 6 mois\nNougats: 4 mois\nCanettes glac\u00e9es: 1 an","notes":"Sp\u00e9cialiste du lacquemant li\u00e9geois\n8 parfums de canettes glac\u00e9es\nCartons mixtes possibles pour canettes\nGamme GMS (grandes surfaces)"},"Interbio":{"contact":"Interbio\nGrossiste BIO\nBelgique","franco":"\u2014","livraison":"\u2014","paiement":"\u2014","colisage":"Huile lin 250ml: 10 PC\nHuiles 500ml: 8 PC\nApple P\u00e9tillant 33cl: 12 PC\nKombucha 25cl: 24 PC","dlc":"\u2014","notes":"Distributeur BIO\nMarques: EquiLibre (huiles)\nKombucha en canettes (5 saveurs)\nCidre p\u00e9tillant BIO"},"Biscuiterie Latour":{"contact":"info@biscuiterielatour.fr\nTel: +33 324 40 81 00\nRoute de Philippeville\n08600 Givet, France","franco":"Franco 20 cartons","livraison":"\u2014","paiement":"\u2014","colisage":"Variable selon format:\n6 \u00e0 24 pcs/carton\n(voir d\u00e9tail par produit)","dlc":"\u2014","notes":"Gaufres rondes pur beurre 25%\nFabrication artisanale\nGamme BIO disponible\nGamme chocolat\nTVA: FR10 444 592 968"},"Jam Jam":{"contact":"Chief Jam Maker Niels\ninfo@jamjam.be\nTel: +32 473 92 73 22\nJezu\u00efetengoed 15\n9880 Aalter\nwww.jamjam.be","franco":"Franco 350\u20ac HT (Flandres)\n< 350\u20ac: +25\u20ac transport\nWallonie/Autres: sur demande","livraison":"Flandres: livraison gratuite d\u00e8s 350\u20ac\nWallonie/Export: frais sur demande","paiement":"\u2014","colisage":"Tous formats: par 12 pi\u00e8ces\n106ml / 212ml / 375ml\n3000ml (seau)","dlc":"\u2014","notes":"70% fruits \u2014 30% sucre\n+100 saveurs disponibles\nFormats: 106ml, 212ml, 375ml, 3L seau\nVersion sans sucre ajout\u00e9 (\u00e9dulcorant) dispo\nMarge HT sur PA: 50%\nBTW: BE0766.348.401\nConfitures, chutneys, gel\u00e9es, oignons"}};
 
 const suppliers = [...new Set(DATA.map(p => p.supplier))];
+const ORIGINAL_SUPPLIERS = new Set(suppliers);
 const supplierColors = {};
 const palette = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0077b6','#e76f51','#264653','#f4a261'];
 suppliers.forEach((s, i) => supplierColors[s] = palette[i % palette.length]);
