@@ -51,6 +51,9 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 .toggle-switch input:checked+.toggle-slider{background:var(--primary)}
 .toggle-switch input:checked+.toggle-slider:before{transform:translateX(18px)}
 .manage-item .supplier-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.manage-item .delete-supplier{background:none;border:none;color:#ddd;cursor:pointer;font-size:0.85rem;padding:0.2rem;opacity:0;transition:all 0.15s}
+.manage-item:hover .delete-supplier{opacity:1}
+.manage-item .delete-supplier:hover{color:#c44}
 .manage-actions{margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #f0f0f0;display:flex;gap:0.75rem}
 .manage-actions button{padding:0.4rem 0.9rem;border:1.5px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;transition:all 0.15s}
 .manage-actions button:hover{border-color:var(--primary);color:var(--primary)}
@@ -490,7 +493,7 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
         <h3>Produits detectes (<span id="importCount">0</span>)</h3>
         <div style="max-height:250px;overflow-y:auto">
           <table class="import-table" id="importTable">
-            <thead><tr><th>Produit</th><th>PA Fourn.</th><th>PA Ruche</th><th>PV Client</th><th>PV Conseil.</th><th></th></tr></thead>
+            <thead><tr><th>Produit</th><th>PA Fourn.</th><th>PA Ruche</th><th>PV Client</th><th>PV Conseil.</th><th>Colisage</th><th></th></tr></thead>
             <tbody id="importTableBody"></tbody>
           </table>
         </div>
@@ -950,13 +953,14 @@ function detectColumns(header, rows) {
     const pvConseille = pvConseilIdx >= 0 ? (parseFloat(row[pvConseilIdx]) || null) : null;
     const descFr = descFrIdx >= 0 ? String(row[descFrIdx] || '') : '';
     const descNl = descNlIdx >= 0 ? String(row[descNlIdx] || '') : '';
-    // Capture colisage (PZ/CT)
+    // Capture colisage (PZ/CT) per product
+    let colQty = 0;
     if (qtyIdx >= 0) {
-      const q = parseInt(row[qtyIdx]);
-      if (q > 0) defaultColisage = q + ' pcs/carton';
+      colQty = parseInt(row[qtyIdx]) || 0;
+      if (colQty > 0) defaultColisage = colQty + ' pcs/carton';
     }
 
-    products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl });
+    products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl, colisage_qty: colQty });
   }
 
   const cond = {contact:'',franco:'',livraison:'',paiement:'',colisage:defaultColisage,dlc:'',notes:''};
@@ -992,6 +996,7 @@ function finishParsing(products, supplierName, conditions) {
     <td><input type="number" step="0.01" value="${p.pa_ruche}" style="width:70px" onchange="importedProducts[${i}].pa_ruche=+this.value;recalcImportRow(${i})"></td>
     <td><input type="number" step="0.01" value="${p.pv_client}" style="width:70px" onchange="importedProducts[${i}].pv_client=+this.value"></td>
     <td><input type="number" step="0.01" value="${p.pv_conseille||''}" style="width:70px" onchange="importedProducts[${i}].pv_conseille=this.value?+this.value:null"></td>
+    <td style="text-align:center;font-weight:600;color:var(--accent)">${p.colisage_qty > 0 ? p.colisage_qty : ''}</td>
     <td><button class="remove-row" onclick="removeImportRow(${i})">&times;</button></td>
   </tr>`).join('');
 
@@ -1048,14 +1053,32 @@ function confirmImport() {
     notes: document.getElementById('impNotes').value || ''
   };
 
-  // Add to COLISAGE if colisage info provided
-  const colisageText = document.getElementById('impColisage').value;
-  if (colisageText) {
-    const match = colisageText.match(/(\d+)/);
-    if (match) {
-      COLISAGE[supplierName] = [{match: /./, qty: parseInt(match[1]), label: colisageText.split('\n')[0].trim()}];
+  // Add to COLISAGE: build per-product rules from imported data
+  const colRules = [];
+  const colGroups = {};
+  importedProducts.forEach(p => {
+    if (p.colisage_qty > 0) {
+      const key = p.colisage_qty;
+      if (!colGroups[key]) colGroups[key] = [];
+      colGroups[key].push(p.name);
+    }
+  });
+  // Create regex rules per colisage quantity
+  for (const [qty, names] of Object.entries(colGroups)) {
+    // Build a regex that matches any of these product names (use first unique word of each)
+    const keywords = names.map(n => n.split(/[\s—]+/)[0]).filter((v,i,a) => a.indexOf(v)===i);
+    const pattern = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    colRules.push({match: new RegExp(pattern, 'i'), qty: parseInt(qty), label: 'Carton ' + qty + ' pcs'});
+  }
+  // Fallback from text input
+  if (colRules.length === 0) {
+    const colisageText = document.getElementById('impColisage').value;
+    if (colisageText) {
+      const m = colisageText.match(/(\d+)/);
+      if (m) colRules.push({match: /./, qty: parseInt(m[1]), label: colisageText.split('\\n')[0].trim()});
     }
   }
+  if (colRules.length > 0) COLISAGE[supplierName] = colRules;
 
   // Rebuild suppliers list
   if (!suppliers.includes(supplierName)) {
@@ -1087,6 +1110,48 @@ function confirmImport() {
   closeImport();
   activeSupplier = supplierName;
   render();
+  debouncedSave();
+}
+
+function archiveSupplier(name) {
+  if (!confirm('Archiver le producteur "' + name + '" et tous ses produits ?\n\nLes produits seront retires du catalogue.')) return;
+  // Remove products from DATA
+  for (let i = DATA.length - 1; i >= 0; i--) {
+    if (DATA[i].supplier === name) DATA.splice(i, 1);
+  }
+  // Remove from CONDITIONS, COLISAGE, supplierColors
+  delete CONDITIONS[name];
+  delete COLISAGE[name];
+  delete supplierColors[name];
+  // Remove from suppliers array
+  const idx = suppliers.indexOf(name);
+  if (idx >= 0) suppliers.splice(idx, 1);
+  // Remove from cart
+  Object.keys(cart).forEach(k => { if (+k >= DATA.length) delete cart[k]; });
+  // Remove from disabled/compare
+  disabledSuppliers.delete(name);
+  if (activeSupplier === name) activeSupplier = null;
+
+  // Rebuild filter buttons
+  const filtersEl = document.getElementById('supplierFilters');
+  filtersEl.innerHTML = '';
+  const btnAll = document.createElement('button');
+  btnAll.className = 'filter-btn active';
+  btnAll.textContent = 'Tous';
+  btnAll.onclick = () => { activeSupplier = null; render(); };
+  filtersEl.appendChild(btnAll);
+  suppliers.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = s;
+    btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
+    filtersEl.appendChild(btn);
+  });
+
+  renderManageGrid();
+  render();
+  updateCartBadge();
+  saveCustomProducers();
   debouncedSave();
 }
 
@@ -1241,16 +1306,19 @@ function init() {
 
 function renderManageGrid() {
   const grid = document.getElementById('manageGrid');
-  grid.innerHTML = suppliers.map(s => `<div class="manage-item">
+  grid.innerHTML = suppliers.map(s => {
+    const isCustom = !ORIGINAL_SUPPLIERS.has(s);
+    return `<div class="manage-item">
     <label class="toggle-switch">
       <input type="checkbox" ${disabledSuppliers.has(s)?'':'checked'} onchange="toggleSupplier('${s.replace(/'/g,"\\'")}',this.checked)">
       <span class="toggle-slider"></span>
     </label>
     <label onclick="document.querySelector('.manage-item input[onchange*=\\'${s.replace(/'/g,"\\\\'")}\\']').click()">
       <span class="supplier-dot" style="background:${supplierColors[s]}"></span>
-      ${s}
+      ${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(importe)</span>' : ''}
     </label>
-  </div>`).join('');
+    ${isCustom ? `<button class="delete-supplier" onclick="archiveSupplier('${s.replace(/'/g,"\\'")}')" title="Archiver ce producteur">&times;</button>` : ''}
+  </div>`}).join('');
 }
 
 function toggleSupplier(name, enabled) {
