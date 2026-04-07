@@ -1157,15 +1157,20 @@ function archiveSupplier(name) {
 
 async function saveCustomProducers() {
   if (!currentUser) return;
-  // Collect all non-original suppliers (indices >= original DATA length would work,
-  // but simpler: store the full custom additions)
   const custom = {};
   suppliers.forEach(s => {
     if (!ORIGINAL_SUPPLIERS.has(s)) {
+      // Serialize COLISAGE rules: convert RegExp to string for JSON storage
+      const colRules = (COLISAGE[s] || []).map(r => ({
+        matchStr: r.match instanceof RegExp ? r.match.source : String(r.match || '.'),
+        excludeStr: r.exclude instanceof RegExp ? r.exclude.source : '',
+        qty: r.qty,
+        label: r.label
+      }));
       custom[s] = {
         products: DATA.filter(p => p.supplier === s),
         conditions: CONDITIONS[s] || {},
-        colisage: COLISAGE[s] || [],
+        colisage: colRules,
         color: supplierColors[s]
       };
     }
@@ -1177,15 +1182,17 @@ function loadCustomProducers(customData) {
   if (!customData) return;
   for (const [supplierName, info] of Object.entries(customData)) {
     if (suppliers.includes(supplierName)) continue;
-    // Add products
     info.products.forEach(p => DATA.push(p));
-    // Add conditions
     if (info.conditions) CONDITIONS[supplierName] = info.conditions;
-    // Add colisage
+    // Reconstruct COLISAGE rules: convert stored strings back to RegExp
     if (info.colisage && info.colisage.length) {
-      COLISAGE[supplierName] = info.colisage.map(r => ({...r, match: new RegExp(r.match?.source || '.')}));
+      COLISAGE[supplierName] = info.colisage.map(r => ({
+        match: new RegExp(r.matchStr || r.match?.source || '.', 'i'),
+        exclude: r.excludeStr ? new RegExp(r.excludeStr, 'i') : undefined,
+        qty: r.qty,
+        label: r.label
+      }));
     }
-    // Add supplier
     suppliers.push(supplierName);
     supplierColors[supplierName] = info.color || '#606c38';
   }
