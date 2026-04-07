@@ -833,18 +833,58 @@ function parseExcel(buffer, filename) {
     const ws = wb.Sheets[sn];
     const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
     if (data.length < 2) continue;
-    // Find header row (first row with multiple non-empty cells)
-    let headerIdx = 0;
-    for (let i = 0; i < Math.min(10, data.length); i++) {
-      const nonEmpty = data[i].filter(c => c !== '').length;
-      if (nonEmpty >= 3) { headerIdx = i; break; }
+
+    // Extract contact info from top rows (email, phone, address)
+    if (!conditions.contact) {
+      const contactLines = [];
+      for (let i = 0; i < Math.min(10, data.length); i++) {
+        for (const cell of data[i]) {
+          const s = String(cell||'').trim();
+          if (s && (s.includes('@') || s.match(/\d{2,}[\/\-\s]\d{2,}/) || s.includes('pastificio') || s.includes('info') || s.includes('strada') || s.includes('rue') || s.includes('tel')))
+            contactLines.push(s);
+        }
+      }
+      if (contactLines.length) conditions.contact = contactLines.join('\\n');
     }
-    const header = data[headerIdx].map(String);
-    const rows = data.slice(headerIdx + 1).filter(r => r.some(c => c !== ''));
-    const detected = detectColumns(header, rows);
-    products = products.concat(detected.products);
-    if (!conditions.contact && detected.conditions.contact) conditions = detected.conditions;
+
+    // Find ALL header rows (search up to 20 rows, look for 3+ non-empty cells)
+    const headerIndices = [];
+    for (let i = 0; i < Math.min(20, data.length); i++) {
+      const nonEmpty = data[i].filter(c => c !== '').length;
+      if (nonEmpty >= 3) headerIndices.push(i);
+    }
+    if (headerIndices.length === 0) continue;
+
+    // For each header row, try to detect multiple column blocks (side-by-side tables)
+    for (const headerIdx of headerIndices) {
+      const fullHeader = data[headerIdx].map(c => String(c||''));
+      const rows = data.slice(headerIdx + 1).filter(r => r.some(c => c !== ''));
+
+      // Find column blocks: groups of consecutive non-empty header cells separated by empty ones
+      const blocks = [];
+      let blockStart = -1;
+      for (let c = 0; c < fullHeader.length; c++) {
+        if (fullHeader[c] !== '') {
+          if (blockStart < 0) blockStart = c;
+        } else {
+          if (blockStart >= 0) { blocks.push([blockStart, c - 1]); blockStart = -1; }
+        }
+      }
+      if (blockStart >= 0) blocks.push([blockStart, fullHeader.length - 1]);
+
+      // Parse each block independently
+      for (const [start, end] of blocks) {
+        const blockHeader = fullHeader.slice(start, end + 1);
+        const blockRows = rows.map(r => r.slice(start, end + 1));
+        const detected = detectColumns(blockHeader, blockRows);
+        products = products.concat(detected.products);
+      }
+    }
   }
+
+  // Deduplicate products by name
+  const seen = new Set();
+  products = products.filter(p => { if (seen.has(p.name)) return false; seen.add(p.name); return true; });
 
   finishParsing(products, supplierName, conditions);
 }
@@ -864,16 +904,16 @@ function extractConditions(data) {
 }
 
 function detectColumns(header, rows) {
-  const h = header.map(c => String(c).toLowerCase());
-  // Detect column indices
-  const nameIdx = h.findIndex(c => c.includes('produit') || c.includes('nom') || c.includes('titre') || c.includes('name') || c.includes('article'));
-  const paIdx = h.findIndex(c => (c.includes('pa') || c.includes('prix') || c.includes('achat') || c.includes('fourn') || c.includes('cost')) && !c.includes('ruche') && !c.includes('client') && !c.includes('vente') && !c.includes('conseil'));
+  const h = header.map(c => String(c).toLowerCase().trim());
+  // Detect column indices — multilingual keywords (FR, NL, EN, IT, DE)
+  const nameIdx = h.findIndex(c => c.includes('produit') || c.includes('nom') || c.includes('titre') || c.includes('name') || c.includes('article') || c.includes('formati') || c.includes('pasta') || c.includes('produkt') || c.includes('product'));
+  const paIdx = h.findIndex(c => (c.includes('pa ') || c.includes('prix') || c.includes('achat') || c.includes('fourn') || c.includes('cost') || c.includes('pezzo') || c.includes('preis') || c.includes('prijs') || c.includes('prezzo') || c.includes('/p')) && !c.includes('ruche') && !c.includes('client') && !c.includes('vente') && !c.includes('conseil'));
   const paRucheIdx = h.findIndex(c => c.includes('ruche'));
   const pvIdx = h.findIndex(c => c.includes('client') || c.includes('vente') || c.includes('pv') || c.includes('ttc'));
-  const pvConseilIdx = h.findIndex(c => c.includes('conseil') || c.includes('recomm') || c.includes('suggest'));
+  const pvConseilIdx = h.findIndex(c => c.includes('conseil') || c.includes('recomm') || c.includes('suggest') || c.includes('consigliato'));
   const descFrIdx = h.findIndex(c => c.includes('description') || c.includes('desc'));
   const descNlIdx = h.findIndex((c,i) => i !== descFrIdx && (c.includes('nl') || c.includes('dutch') || c.includes('neder')));
-  const qtyIdx = h.findIndex(c => c.includes('quantit') || c.includes('qty') || c.includes('colisage') || c.includes('carton'));
+  const qtyIdx = h.findIndex(c => c.includes('quantit') || c.includes('qty') || c.includes('colisage') || c.includes('carton') || c.includes('pz/ct') || c.includes('pz/'));
 
   // Fallback: if no name column found, use first text column
   const effNameIdx = nameIdx >= 0 ? nameIdx : h.findIndex((c,i) => {
@@ -888,22 +928,39 @@ function detectColumns(header, rows) {
     return sample.filter(n => !isNaN(n) && n > 0).length >= 2;
   });
 
+  // Find grammatura/weight column to append to product name
+  const weightIdx = h.findIndex(c => c.includes('gramm') || c.includes('poids') || c.includes('weight') || c.includes('format') || c.includes('contenu'));
+
   const products = [];
+  let defaultColisage = '';
   for (const row of rows) {
-    const name = String(row[effNameIdx] || '').trim();
+    let name = String(row[effNameIdx] || '').trim();
     if (!name || name.length < 2) continue;
+    // Skip rows that look like sub-headers
+    if (name === name.toUpperCase() && name.length > 20) continue;
     const pa = parseFloat(row[effPaIdx]) || 0;
-    if (pa <= 0) continue; // Skip rows without price
+    if (pa <= 0) continue;
+    // Append weight to name if available
+    if (weightIdx >= 0) {
+      const w = String(row[weightIdx] || '').trim();
+      if (w && !name.includes(w)) name += ' — ' + w;
+    }
     const paRuche = paRucheIdx >= 0 ? (parseFloat(row[paRucheIdx]) || pa * 1.20) : pa * 1.20;
     const pvClient = pvIdx >= 0 ? (parseFloat(row[pvIdx]) || paRuche * 1.20 * 1.06) : paRuche * 1.20 * 1.06;
     const pvConseille = pvConseilIdx >= 0 ? (parseFloat(row[pvConseilIdx]) || null) : null;
     const descFr = descFrIdx >= 0 ? String(row[descFrIdx] || '') : '';
     const descNl = descNlIdx >= 0 ? String(row[descNlIdx] || '') : '';
+    // Capture colisage (PZ/CT)
+    if (qtyIdx >= 0) {
+      const q = parseInt(row[qtyIdx]);
+      if (q > 0) defaultColisage = q + ' pcs/carton';
+    }
 
     products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl });
   }
 
-  return { products, conditions: {contact:'',franco:'',livraison:'',paiement:'',colisage:'',dlc:'',notes:''} };
+  const cond = {contact:'',franco:'',livraison:'',paiement:'',colisage:defaultColisage,dlc:'',notes:''};
+  return { products, conditions: cond };
 }
 
 function finishParsing(products, supplierName, conditions) {
