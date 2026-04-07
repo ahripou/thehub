@@ -493,7 +493,7 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
         <h3>Produits detectes (<span id="importCount">0</span>)</h3>
         <div style="max-height:250px;overflow-y:auto">
           <table class="import-table" id="importTable">
-            <thead><tr><th>Produit</th><th>PA Fourn.</th><th>PA Ruche</th><th>PV Client</th><th>PV Conseil.</th><th>Colisage</th><th></th></tr></thead>
+            <thead><tr><th>Produit</th><th>PA Fourn.</th><th>PA Ruche</th><th>PV Client</th><th>PV Conseil.</th><th>Col.</th><th>Image</th><th></th></tr></thead>
             <tbody id="importTableBody"></tbody>
           </table>
         </div>
@@ -960,18 +960,74 @@ function detectColumns(header, rows) {
       if (colQty > 0) defaultColisage = colQty + ' pcs/carton';
     }
 
-    products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl, colisage_qty: colQty });
+    products.push({ name, pa_fournisseur: pa, pa_ruche: Math.round(paRuche*100)/100, pv_client: Math.round(pvClient*100)/100, pv_conseille: pvConseille, desc_fr: descFr, desc_nl: descNl, colisage_qty: colQty, image: '' });
   }
 
   const cond = {contact:'',franco:'',livraison:'',paiement:'',colisage:defaultColisage,dlc:'',notes:''};
   return { products, conditions: cond };
 }
 
+// Known product image catalogs (auto-match by product name keywords)
+const KNOWN_IMAGES = {
+  'cannerozzi': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/07/cannerozzi-1-340x340.jpg',
+  'cannerozzi bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/cannerozzi-biologici-340x340.jpg',
+  'cannerozzi integral': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/cannerozzi-biologici-340x340.jpg',
+  'capunti': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/08/capunti-1-340x340.jpg',
+  'cavatelli': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/08/cavatelli-tradizionali-302x302.jpg',
+  'orecchiette': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/08/orecchiette-1-340x340.jpg',
+  'orecchiette bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/orecchiette-biologiche-340x340.jpg',
+  'fusilli': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/fusilli-340x340.jpg',
+  'fusilli bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/fusilli-biologici-340x340.jpg',
+  'fusilli paesani': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/fusilli-340x340.jpg',
+  'penne rigate': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/08/penne-rigate-340x340.jpg',
+  'penne rigate bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/penne-rigate-biologiche-340x340.jpg',
+  'paccheri rigati': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/Paccheri-Rigati-340x340.jpg',
+  'spaghetti': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/spaghetti-bio-1-340x340.jpg',
+  'tagliolini': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/tagliatella-biologica-340x340.jpg',
+  'torciglioni': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/torciglioni-340x340.jpg',
+  'torciglioni bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/torciglioni-biologici-340x340.jpg',
+  'rigatoni': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/maccheroni-340x340.jpg',
+  'trucioli': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/trucioli-340x340.jpg',
+  'trucioli bio': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/trucioli-biologici-340x340.jpg',
+  'maritati': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/maritati-340x340.jpg',
+  'maccheroni': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/maccheroni-340x340.jpg',
+  'strascinate': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/strascinate-340x340.jpg',
+  'foglie': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/09/Foglie-dulivo-340x340.jpg',
+  'torchietti': 'https://www.ilmastropastaio.it/wp-content/uploads/2018/07/torchietti-340x340.jpg',
+  'mezzi ziti': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/mezzi-ziti-340x340.jpg',
+  'fregola': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/fregola-pugliese-mediterranea-340x340.jpg',
+  'stelline': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/stelline-biologiche-340x340.jpg',
+  'tubettini': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/Tubettini-340x340.jpg',
+  'calamarata': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/Calamarata-rigata-340x340.jpg',
+  'spaghettoni': 'https://www.ilmastropastaio.it/wp-content/uploads/2023/10/Spaghettoni-340x340.jpg',
+};
+
+function autoMatchImages(products) {
+  let matched = 0;
+  products.forEach(p => {
+    if (p.image) return;
+    const name = p.name.toLowerCase();
+    // Try exact match first, then partial
+    for (const [key, url] of Object.entries(KNOWN_IMAGES)) {
+      if (name.includes(key)) {
+        // Prefer "bio" specific image if product is bio
+        const isBio = name.includes('bio') || name.includes('biolog');
+        const bioKey = key + ' bio';
+        if (isBio && KNOWN_IMAGES[bioKey]) { p.image = KNOWN_IMAGES[bioKey]; matched++; return; }
+        p.image = url; matched++; return;
+      }
+    }
+  });
+  return matched;
+}
+
 function finishParsing(products, supplierName, conditions) {
   importedProducts = products;
   const status = document.getElementById('importStatus');
   if (products.length === 0) { showImportError('Aucun produit detecte dans le fichier'); return; }
-  status.textContent = products.length + ' produits detectes';
+  // Auto-match images from known catalogs
+  const imgMatched = autoMatchImages(products);
+  status.textContent = products.length + ' produits detectes' + (imgMatched > 0 ? ' — ' + imgMatched + ' images trouvees' : '');
   status.classList.add('visible');
   status.classList.remove('error');
   document.getElementById('importSupplierName').value = supplierName;
@@ -997,6 +1053,7 @@ function finishParsing(products, supplierName, conditions) {
     <td><input type="number" step="0.01" value="${p.pv_client}" style="width:70px" onchange="importedProducts[${i}].pv_client=+this.value"></td>
     <td><input type="number" step="0.01" value="${p.pv_conseille||''}" style="width:70px" onchange="importedProducts[${i}].pv_conseille=this.value?+this.value:null"></td>
     <td style="text-align:center;font-weight:600;color:var(--accent)">${p.colisage_qty > 0 ? p.colisage_qty : ''}</td>
+    <td>${p.image ? `<img src="${p.image}" style="height:30px;border-radius:3px">` : '<span style="color:#ddd">—</span>'}</td>
     <td><button class="remove-row" onclick="removeImportRow(${i})">&times;</button></td>
   </tr>`).join('');
 
@@ -1044,7 +1101,8 @@ function confirmImport() {
       pa_fournisseur: p.pa_fournisseur,
       pa_ruche: p.pa_ruche,
       pv_client: p.pv_client,
-      pv_conseille: p.pv_conseille
+      pv_conseille: p.pv_conseille,
+      image: p.image || ''
     });
   });
 
@@ -1458,7 +1516,7 @@ function render() {
       const inCart = qty > 0;
       const inCmp = compareSet.has(idx);
       const col = getColisage(p.supplier, p.name);
-      const imgUrl = IMAGES[idx];
+      const imgUrl = p.image || IMAGES[idx];
       html += `<div class="card${inCart?' in-cart':''}${inCmp?' in-compare':''}">
         <div class="card-img" onclick="openModal(${idx})">
           ${imgUrl ? `<img src="${imgUrl}" alt="${p.name}" loading="lazy">` : '<span class="no-img">&#x1f4e6;</span>'}
