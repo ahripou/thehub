@@ -72,6 +72,50 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
 .manage-actions{margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #f0f0f0;display:flex;gap:0.75rem}
 .manage-actions button{padding:0.4rem 0.9rem;border:1.5px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;transition:all 0.15s}
 .manage-actions button:hover{border-color:var(--primary);color:var(--primary)}
+
+/* Supplier sidebar */
+.supplier-sidebar{position:fixed;top:0;left:0;width:320px;height:100vh;background:#fff;z-index:200;transform:translateX(-100%);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);box-shadow:4px 0 24px rgba(0,0,0,0.12);display:flex;flex-direction:column}
+.supplier-sidebar.open{transform:translateX(0)}
+.supplier-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:199;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.supplier-overlay.open{opacity:1;pointer-events:auto}
+.sidebar-header{padding:1rem 1.25rem;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
+.sidebar-header h3{font-size:1rem;font-weight:700;color:var(--primary-dark);margin:0}
+.sidebar-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-light);padding:0.3rem}
+.sidebar-search{padding:0.75rem 1.25rem;border-bottom:1px solid #f0f0f0}
+.sidebar-search input{width:100%;padding:0.5rem 0.75rem;border:1.5px solid #e0e0e0;border-radius:8px;font-size:0.85rem;outline:none;transition:border-color 0.2s}
+.sidebar-search input:focus{border-color:var(--primary)}
+.sidebar-suppliers-body{flex:1;overflow-y:auto;padding:0.5rem 0}
+.sidebar-section{padding:0.25rem 0}
+.sidebar-section-title{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-light);padding:0.5rem 1.25rem 0.25rem;display:flex;align-items:center;gap:0.5rem}
+.sidebar-section-title .sec-count{font-size:0.6rem;background:#e8e8e8;color:var(--text-light);padding:0.1rem 0.4rem;border-radius:99px}
+.sidebar-section-title.clients{color:var(--primary)}
+.sidebar-section-title.clients .sec-count{background:var(--primary);color:#fff}
+.sidebar-section-title.prospects{color:var(--accent)}
+.sidebar-section-title.prospects .sec-count{background:var(--accent);color:#fff}
+.sidebar-item{display:flex;align-items:center;gap:0.5rem;padding:0.45rem 1.25rem;cursor:pointer;transition:background 0.15s;font-size:0.85rem}
+.sidebar-item:hover{background:#f8f8f0}
+.sidebar-item.active{background:#f0faf4;font-weight:600}
+.sidebar-item.disabled{opacity:0.4}
+.sidebar-item .s-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.sidebar-item .s-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-item .s-count{font-size:0.7rem;color:var(--text-light);background:#f0f0f0;padding:0.1rem 0.45rem;border-radius:99px;min-width:20px;text-align:center}
+.sidebar-item .s-toggle{position:relative;width:32px;height:18px;flex-shrink:0}
+.sidebar-item .s-toggle input{opacity:0;width:0;height:0}
+.sidebar-item .s-toggle .s-slider{position:absolute;inset:0;background:#ccc;border-radius:9px;transition:0.2s;cursor:pointer}
+.sidebar-item .s-toggle .s-slider:before{content:'';position:absolute;height:14px;width:14px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:0.2s}
+.sidebar-item .s-toggle input:checked+.s-slider{background:var(--primary)}
+.sidebar-item .s-toggle input:checked+.s-slider:before{transform:translateX(14px)}
+.sidebar-item .s-delete{background:none;border:none;color:#ddd;cursor:pointer;font-size:0.9rem;padding:0 0.2rem;opacity:0;transition:opacity 0.15s}
+.sidebar-item:hover .s-delete{opacity:1}
+.sidebar-item .s-delete:hover{color:#c44}
+.sidebar-footer{padding:0.75rem 1.25rem;border-top:1px solid #eee;display:flex;gap:0.5rem;flex-wrap:wrap}
+.sidebar-footer button{padding:0.35rem 0.7rem;border:1.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.15s}
+.sidebar-footer button:hover{border-color:var(--primary);color:var(--primary)}
+.supplier-chip{display:inline-flex;align-items:center;gap:0.3rem;padding:0.3rem 0.7rem;background:var(--primary);color:#fff;border-radius:99px;font-size:0.8rem;font-weight:600;cursor:pointer}
+.supplier-chip .chip-x{margin-left:0.2rem;font-size:0.7rem;opacity:0.7}
+.supplier-chip .chip-x:hover{opacity:1}
+.manage-col.dragover-sidebar{background:#f0faf4;outline:2px dashed var(--primary)}
+
 .lang-toggle{margin-left:auto;display:flex;gap:0;border:2px solid var(--accent);border-radius:var(--radius);overflow:hidden}
 .lang-toggle button{padding:0.5rem 1rem;border:none;background:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s}
 .lang-toggle button.active{background:var(--accent);color:#fff}
@@ -456,10 +500,11 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
     <input type="text" id="search" placeholder="Rechercher un produit...">
   </div>
-  <div id="supplierFilters"></div>
-  <button class="manage-btn" onclick="toggleManagePanel()" title="Activer/Desactiver producteurs">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+  <button class="manage-btn" onclick="toggleSupplierSidebar()" id="btnProducteurs" title="Gerer les producteurs">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    Producteurs <span class="badge" id="supplierBadge" style="background:var(--primary);color:#fff;font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:99px;margin-left:0.2rem">14</span>
   </button>
+  <div id="activeSupplierChip"></div>
   <div class="lang-toggle">
     <button class="active" onclick="setLang('fr')">FR</button>
     <button onclick="setLang('nl')">NL</button>
@@ -474,30 +519,7 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
   </div>
 </div>
 
-<div class="manage-panel" id="managePanel">
-  <div class="manage-columns">
-    <div class="manage-col clients" id="colClients" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="dropSupplier(event,'client')">
-      <h4><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Producteurs (clients) <span class="col-count" id="clientCount">0</span></h4>
-      <div id="clientGrid"></div>
-    </div>
-    <div class="manage-col prospects" id="colProspects" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="dropSupplier(event,'prospect')">
-      <h4><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> Nouveaux producteurs <span class="col-count" id="prospectCount">0</span></h4>
-      <div id="prospectGrid"></div>
-    </div>
-  </div>
-  <div class="manage-actions">
-    <button onclick="enableAllSuppliers()">Tout activer</button>
-    <button onclick="disableAllSuppliers()">Tout desactiver</button>
-    <button class="import-btn" onclick="openImport()">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Importer
-    </button>
-    <button class="import-btn" onclick="updateAllImages()" id="btnUpdateImages" style="border-color:var(--accent);color:var(--accent)">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-      Chercher images
-    </button>
-  </div>
-</div>
+<!-- manage-panel removed: management now in supplier sidebar -->
 
 <!-- Import Modal -->
 <div class="import-overlay" id="importOverlay" onclick="if(event.target===this)closeImport()">
@@ -1340,27 +1362,15 @@ function deleteSupplierData(name) {
 }
 
 function rebuildFilters() {
-  const filtersEl = document.getElementById('supplierFilters');
-  filtersEl.innerHTML = '';
-  const btnAll = document.createElement('button');
-  btnAll.className = 'filter-btn active';
-  btnAll.textContent = 'Tous';
-  btnAll.onclick = () => { activeSupplier = null; render(); };
-  filtersEl.appendChild(btnAll);
-  suppliers.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn';
-    btn.textContent = s;
-    btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
-    filtersEl.appendChild(btn);
-  });
+  updateSupplierBadge();
+  updateActiveChip();
+  if (document.getElementById('supplierSidebar').classList.contains('open')) renderSupplierSidebar();
 }
 
 function deleteSupplier(name) {
   if (!confirm('Supprimer le producteur "' + name + '" et tous ses produits ?\n\nCette action est irreversible.')) return;
   deleteSupplierData(name);
   rebuildFilters();
-  renderManageGrid();
   render();
   updateCartBadge();
   saveCustomProducers();
@@ -1508,50 +1518,15 @@ const palette = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0
 suppliers.forEach((s, i) => { supplierColors[s] = palette[i % palette.length]; supplierGroups[s] = 'client'; });
 
 function init() {
-  const filtersEl = document.getElementById('supplierFilters');
-  filtersEl.innerHTML = '';
-  const btnAll = document.createElement('button');
-  btnAll.className = 'filter-btn active';
-  btnAll.textContent = 'Tous';
-  btnAll.onclick = () => { activeSupplier = null; render(); };
-  filtersEl.appendChild(btnAll);
-  suppliers.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn';
-    btn.textContent = s;
-    btn.onclick = () => { if (!disabledSuppliers.has(s)) { activeSupplier = activeSupplier===s ? null : s; render(); } };
-    filtersEl.appendChild(btn);
-  });
   document.getElementById('search').addEventListener('input', e => { searchTerm = e.target.value.toLowerCase(); render(); });
-  renderManageGrid();
+  updateSupplierBadge();
+  updateActiveChip();
   render();
 }
 
 function renderManageGrid() {
-  const clients = suppliers.filter(s => supplierGroups[s] === 'client');
-  const prospects = suppliers.filter(s => supplierGroups[s] !== 'client');
-
-  document.getElementById('clientCount').textContent = clients.length;
-  document.getElementById('prospectCount').textContent = prospects.length;
-
-  document.getElementById('clientGrid').innerHTML = clients.length ? clients.map(s => renderSupplierItem(s)).join('') : '<div class="empty-msg">Glissez un producteur ici</div>';
-  document.getElementById('prospectGrid').innerHTML = prospects.length ? prospects.map(s => renderSupplierItem(s)).join('') : '<div class="empty-msg">Glissez un producteur ici</div>';
-}
-
-function renderSupplierItem(s) {
-  const isCustom = !ORIGINAL_SUPPLIERS.has(s);
-  const esc = s.replace(/'/g,"\\'");
-  return `<div class="manage-item" draggable="true" ondragstart="dragSupplier(event,'${esc}')" ondragend="this.classList.remove('dragging')" data-supplier="${s}">
-    <label class="toggle-switch">
-      <input type="checkbox" ${disabledSuppliers.has(s)?'':'checked'} onchange="event.stopPropagation();toggleSupplier('${esc}',this.checked)">
-      <span class="toggle-slider"></span>
-    </label>
-    <span style="display:flex;align-items:center;gap:0.4rem;flex:1;font-size:0.85rem">
-      <span class="supplier-dot" style="background:${supplierColors[s]}"></span>
-      ${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(imp.)</span>' : ''}
-    </span>
-    <button class="delete-supplier" onclick="event.stopPropagation();deleteSupplier('${esc}')" title="Supprimer">&times;</button>
-  </div>`;
+  // Legacy: now handled by sidebar. Redirect to sidebar render.
+  if (document.getElementById('supplierSidebar').classList.contains('open')) renderSupplierSidebar();
 }
 
 function dragSupplier(event, name) {
@@ -1565,42 +1540,137 @@ function dropSupplier(event, group) {
   const name = event.dataTransfer.getData('text/plain');
   if (name && suppliers.includes(name)) {
     supplierGroups[name] = group;
-    renderManageGrid();
+    renderSupplierSidebar();
     render();
     debouncedSave();
   }
+}
+
+function dropSupplierSidebar(event) {
+  // Allow drop anywhere in sidebar body - determine target group by drop position
+  event.preventDefault();
+  const name = event.dataTransfer.getData('text/plain');
+  if (!name || !suppliers.includes(name)) return;
+  // Find closest section title to determine group
+  const target = event.target.closest('.sidebar-item');
+  if (target) {
+    const targetSupplier = target.dataset.supplier;
+    if (targetSupplier && targetSupplier !== name) {
+      // Swap group to match the target supplier's group
+      supplierGroups[name] = supplierGroups[targetSupplier] || 'prospect';
+    }
+  }
+  renderSupplierSidebar();
+  render();
+  debouncedSave();
 }
 
 function toggleSupplier(name, enabled) {
   if (enabled) disabledSuppliers.delete(name);
   else disabledSuppliers.add(name);
   if (activeSupplier && disabledSuppliers.has(activeSupplier)) activeSupplier = null;
-  updateFilterBtns();
+  updateSupplierBadge();
+  updateActiveChip();
   render();
   debouncedSave();
 }
 
 function toggleManagePanel() {
-  document.getElementById('managePanel').classList.toggle('open');
+  // Legacy - now opens the supplier sidebar
+  toggleSupplierSidebar();
 }
 
 function enableAllSuppliers() {
   disabledSuppliers.clear();
-  renderManageGrid(); updateFilterBtns(); render(); debouncedSave();
+  updateSupplierBadge(); updateActiveChip(); render(); debouncedSave();
 }
 
 function disableAllSuppliers() {
   suppliers.forEach(s => disabledSuppliers.add(s));
   activeSupplier = null;
-  renderManageGrid(); updateFilterBtns(); render(); debouncedSave();
+  updateSupplierBadge(); updateActiveChip(); render(); debouncedSave();
 }
 
 function updateFilterBtns() {
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    if (b.textContent !== 'Tous') {
-      b.classList.toggle('supplier-disabled', disabledSuppliers.has(b.textContent));
-    }
-  });
+  // Legacy - now handled by sidebar
+  updateSupplierBadge();
+  updateActiveChip();
+}
+
+function toggleSupplierSidebar() {
+  document.getElementById('supplierSidebar').classList.toggle('open');
+  document.getElementById('supplierOverlay').classList.toggle('open');
+  if (document.getElementById('supplierSidebar').classList.contains('open')) renderSupplierSidebar();
+}
+
+function renderSupplierSidebar() {
+  const search = (document.getElementById('supplierSearch')?.value || '').toLowerCase();
+  const clients = suppliers.filter(s => supplierGroups[s] === 'client' && s.toLowerCase().includes(search));
+  const prospects = suppliers.filter(s => supplierGroups[s] !== 'client' && s.toLowerCase().includes(search));
+  const productCounts = {};
+  DATA.forEach(p => { productCounts[p.supplier] = (productCounts[p.supplier] || 0) + 1; });
+
+  let html = '';
+  // "Tous" item
+  html += `<div class="sidebar-item${!activeSupplier?' active':''}" onclick="activeSupplier=null;render();renderSupplierSidebar();updateActiveChip()">
+    <span class="s-dot" style="background:#888"></span>
+    <span class="s-name">Tous les producteurs</span>
+    <span class="s-count">${DATA.length}</span>
+  </div>`;
+
+  if (clients.length) {
+    html += `<div class="sidebar-section-title clients">Producteurs (clients) <span class="sec-count">${clients.length}</span></div>`;
+    html += `<div class="manage-col clients" ondragover="event.preventDefault();this.classList.add('dragover-sidebar')" ondragleave="this.classList.remove('dragover-sidebar')" ondrop="event.preventDefault();this.classList.remove('dragover-sidebar');var n=event.dataTransfer.getData('text/plain');if(n&&suppliers.includes(n)){supplierGroups[n]='client';renderSupplierSidebar();render();debouncedSave()}" style="border:none;padding:0;min-height:0">`;
+    clients.forEach(s => { html += renderSidebarItem(s, productCounts[s] || 0); });
+    html += '</div>';
+  }
+  if (prospects.length) {
+    html += `<div class="sidebar-section-title prospects">Nouveaux producteurs <span class="sec-count">${prospects.length}</span></div>`;
+    html += `<div class="manage-col prospects" ondragover="event.preventDefault();this.classList.add('dragover-sidebar')" ondragleave="this.classList.remove('dragover-sidebar')" ondrop="event.preventDefault();this.classList.remove('dragover-sidebar');var n=event.dataTransfer.getData('text/plain');if(n&&suppliers.includes(n)){supplierGroups[n]='prospect';renderSupplierSidebar();render();debouncedSave()}" style="border:none;padding:0;min-height:0">`;
+    prospects.forEach(s => { html += renderSidebarItem(s, productCounts[s] || 0); });
+    html += '</div>';
+  }
+
+  if (!clients.length && !prospects.length && search) {
+    html += '<div style="text-align:center;padding:2rem;color:#ccc;font-size:0.85rem">Aucun producteur trouv\u00e9</div>';
+  }
+
+  document.getElementById('sidebarBody').innerHTML = html;
+  updateSupplierBadge();
+}
+
+function renderSidebarItem(s, count) {
+  const esc = s.replace(/'/g, "\\'");
+  const isActive = activeSupplier === s;
+  const isDisabled = disabledSuppliers.has(s);
+  const isCustom = !ORIGINAL_SUPPLIERS.has(s);
+  return `<div class="sidebar-item${isActive?' active':''}${isDisabled?' disabled':''}" draggable="true" ondragstart="dragSupplier(event,'${esc}')" data-supplier="${s}">
+    <span class="s-dot" style="background:${supplierColors[s]}"></span>
+    <span class="s-name" onclick="if(!disabledSuppliers.has('${esc}')){activeSupplier=activeSupplier==='${esc}'?null:'${esc}';render();renderSupplierSidebar();updateActiveChip()}">${s}${isCustom ? ' <span style="font-size:0.6rem;color:var(--accent)">(imp.)</span>' : ''}</span>
+    <span class="s-count">${count}</span>
+    <label class="s-toggle" onclick="event.stopPropagation()">
+      <input type="checkbox" ${isDisabled?'':'checked'} onchange="toggleSupplier('${esc}',this.checked);renderSupplierSidebar()">
+      <span class="s-slider"></span>
+    </label>
+    <button class="s-delete" onclick="event.stopPropagation();deleteSupplier('${esc}');renderSupplierSidebar()" title="Supprimer">&times;</button>
+  </div>`;
+}
+
+function updateActiveChip() {
+  const el = document.getElementById('activeSupplierChip');
+  if (!el) return;
+  if (activeSupplier) {
+    el.innerHTML = `<span class="supplier-chip" onclick="activeSupplier=null;render();updateActiveChip();if(document.getElementById('supplierSidebar').classList.contains('open'))renderSupplierSidebar()"><span style="background:${supplierColors[activeSupplier]};width:8px;height:8px;border-radius:50%;display:inline-block"></span> ${activeSupplier} <span class="chip-x">&times;</span></span>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function updateSupplierBadge() {
+  const el = document.getElementById('supplierBadge');
+  if (!el) return;
+  const activeCount = suppliers.filter(s => !disabledSuppliers.has(s)).length;
+  el.textContent = activeCount + '/' + suppliers.length;
 }
 
 function setLang(l) { lang = l; document.querySelectorAll('.lang-toggle button').forEach(b => b.classList.toggle('active', b.textContent === l.toUpperCase())); render(); debouncedSave(); }
@@ -1655,11 +1725,8 @@ function updateCartBadge() {
 }
 
 function render() {
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    if (b.textContent === 'Tous') b.classList.toggle('active', !activeSupplier);
-    else b.classList.toggle('active', b.textContent === activeSupplier);
-  });
-  updateFilterBtns();
+  updateActiveChip();
+  updateSupplierBadge();
 
   const filtered = getFiltered();
   const statsEl = document.getElementById('stats');
@@ -2097,10 +2164,31 @@ function renderCompare() {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeBon(); closeCompare(); if(document.getElementById('sidebar').classList.contains('open')) toggleSidebar(); }
+  if (e.key === 'Escape') { closeModal(); closeBon(); closeCompare(); if(document.getElementById('sidebar').classList.contains('open')) toggleSidebar(); if(document.getElementById('supplierSidebar').classList.contains('open')) toggleSupplierSidebar(); }
 });
 
 initAuth();
 </script>
+
+<div class="supplier-overlay" id="supplierOverlay" onclick="toggleSupplierSidebar()"></div>
+<div class="supplier-sidebar" id="supplierSidebar">
+  <div class="sidebar-header">
+    <h3>Producteurs</h3>
+    <button class="sidebar-close" onclick="toggleSupplierSidebar()">&times;</button>
+  </div>
+  <div class="sidebar-search">
+    <input type="text" id="supplierSearch" placeholder="Rechercher un producteur..." oninput="renderSupplierSidebar()">
+  </div>
+  <div class="sidebar-suppliers-body" id="sidebarBody"
+       ondragover="event.preventDefault()"
+       ondrop="dropSupplierSidebar(event)"></div>
+  <div class="sidebar-footer">
+    <button onclick="enableAllSuppliers();renderSupplierSidebar()">Tout activer</button>
+    <button onclick="disableAllSuppliers();renderSupplierSidebar()">Tout desactiver</button>
+    <button onclick="openImport()" style="border-color:var(--accent);color:var(--accent)">+ Importer</button>
+    <button onclick="updateAllImages()" id="btnUpdateImages" style="border-color:var(--accent);color:var(--accent)">Chercher images</button>
+  </div>
+</div>
+
 </body>
 </html>
