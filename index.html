@@ -545,8 +545,20 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
     <div class="import-status" id="importStatus"></div>
     <div class="import-body" id="importBody">
       <div class="import-section">
-        <h3>Nom du producteur</h3>
-        <input type="text" id="importSupplierName" style="width:100%;padding:0.5rem;border:1.5px solid #ddd;border-radius:6px;font-size:0.95rem;font-weight:600" placeholder="Nom du producteur">
+        <h3>Mode d'import</h3>
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.6rem">
+          <button type="button" id="modeNewBtn" onclick="setImportMode('new')" style="flex:1;padding:0.5rem;border:2px solid var(--primary);border-radius:6px;background:var(--primary);color:#fff;cursor:pointer;font-size:0.85rem;font-weight:600">Nouveau producteur</button>
+          <button type="button" id="modeExistingBtn" onclick="setImportMode('existing')" style="flex:1;padding:0.5rem;border:2px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85rem;font-weight:600">Ajouter a un producteur existant</button>
+        </div>
+        <div id="newSupplierRow">
+          <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:0.3rem">Nom du nouveau producteur</label>
+          <input type="text" id="importSupplierName" style="width:100%;padding:0.5rem;border:1.5px solid #ddd;border-radius:6px;font-size:0.95rem;font-weight:600" placeholder="Nom du producteur">
+        </div>
+        <div id="existingSupplierRow" style="display:none">
+          <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:0.3rem">Choisir le producteur existant</label>
+          <select id="importExistingSupplier" style="width:100%;padding:0.5rem;border:1.5px solid #ddd;border-radius:6px;font-size:0.95rem;font-weight:600;background:#fff"></select>
+          <div style="font-size:0.75rem;color:#888;margin-top:0.3rem">Les produits importes seront ajoutes a ce producteur. Les conditions existantes sont conservees.</div>
+        </div>
       </div>
       <div class="import-section">
         <h3>Produits detectes (<span id="importCount">0</span>)</h3>
@@ -557,7 +569,7 @@ header p{font-size:0.85rem;opacity:0.8;margin-top:0.25rem}
           </table>
         </div>
       </div>
-      <div class="import-section">
+      <div class="import-section" id="importCondSection">
         <h3>Conditions fournisseur</h3>
         <div class="cond-form">
           <label>Contact<input type="text" id="impContact" placeholder="email, tel, adresse"></label>
@@ -806,6 +818,7 @@ async function viewOrder(orderId) {
 
 /* Import Producer */
 let importedProducts = [];
+let importMode = 'new'; // 'new' or 'existing'
 
 function openImport() {
   document.getElementById('importOverlay').classList.add('open');
@@ -813,8 +826,33 @@ function openImport() {
 }
 function closeImport() { document.getElementById('importOverlay').classList.remove('open'); resetImport(); }
 
+function setImportMode(mode) {
+  importMode = mode;
+  const newBtn = document.getElementById('modeNewBtn');
+  const existBtn = document.getElementById('modeExistingBtn');
+  const newRow = document.getElementById('newSupplierRow');
+  const existRow = document.getElementById('existingSupplierRow');
+  const condSection = document.getElementById('importCondSection');
+  if (mode === 'new') {
+    newBtn.style.background = 'var(--primary)'; newBtn.style.color = '#fff'; newBtn.style.borderColor = 'var(--primary)';
+    existBtn.style.background = '#fff'; existBtn.style.color = '#555'; existBtn.style.borderColor = '#ddd';
+    newRow.style.display = ''; existRow.style.display = 'none';
+    condSection.style.display = '';
+  } else {
+    existBtn.style.background = 'var(--primary)'; existBtn.style.color = '#fff'; existBtn.style.borderColor = 'var(--primary)';
+    newBtn.style.background = '#fff'; newBtn.style.color = '#555'; newBtn.style.borderColor = '#ddd';
+    newRow.style.display = 'none'; existRow.style.display = '';
+    condSection.style.display = 'none';
+    // Populate existing suppliers dropdown
+    const sel = document.getElementById('importExistingSupplier');
+    sel.innerHTML = suppliers.slice().sort((a,b) => a.localeCompare(b))
+      .map(s => '<option value="' + s.replace(/"/g,'&quot;') + '">' + s + '</option>').join('');
+  }
+}
+
 function resetImport() {
   importedProducts = [];
+  importMode = 'new';
   document.getElementById('importBody').classList.remove('visible');
   document.getElementById('importActions').style.display = 'none';
   document.getElementById('importStatus').classList.remove('visible','error');
@@ -827,6 +865,8 @@ function resetImport() {
     if (el) el.value = '';
   });
   document.getElementById('fileInput').value = '';
+  // Reset mode toggles to 'new'
+  setImportMode('new');
 }
 
 // Drag & drop
@@ -933,18 +973,25 @@ async function analyzeImageFile(file) {
     })).filter(p => p.name && p.pa_fournisseur > 0);
 
     const supplierName = data.supplier?.name || file.name.replace(/\.\w+$/, '');
+    const website = data.supplier?.website || '';
     const conditions = {
-      contact: data.supplier?.contact || '',
+      contact: [data.supplier?.contact, website].filter(Boolean).join('\\n'),
       franco: '',
       livraison: '',
       paiement: '',
       colisage: '',
       dlc: '',
-      notes: [data.supplier?.country, data.supplier?.website].filter(Boolean).join('\\n')
+      notes: [data.supplier?.country].filter(Boolean).join('\\n')
     };
 
     status.textContent = products.length + ' produits detectes par IA depuis l\'image';
     finishParsing(products, supplierName, conditions);
+
+    // Also try image search with supplier name as website if no website detected
+    if (!website && supplierName) {
+      const guessUrl = 'https://www.' + supplierName.toLowerCase().replace(/[^a-z0-9]/g,'') + '.com';
+      searchImagesOnline(products, guessUrl, status);
+    }
 
   } catch (err) {
     showImportError('Erreur d\'analyse: ' + err.message);
@@ -1356,20 +1403,29 @@ function removeImportRow(i) {
 }
 
 function confirmImport() {
-  const supplierName = document.getElementById('importSupplierName').value.trim();
-  if (!supplierName) { showImportError('Entrez le nom du producteur'); return; }
   if (importedProducts.length === 0) { showImportError('Aucun produit a importer'); return; }
 
-  // If supplier already exists, remove old data first (replace mode)
-  if (suppliers.includes(supplierName)) {
-    if (!confirm('Le producteur "' + supplierName + '" existe deja.\n\nRemplacer ses produits par les nouveaux ?')) return;
-    deleteSupplierData(supplierName);
+  let supplierName;
+  const isExisting = importMode === 'existing';
+
+  if (isExisting) {
+    supplierName = document.getElementById('importExistingSupplier').value;
+    if (!supplierName || !suppliers.includes(supplierName)) { showImportError('Choisissez un producteur existant'); return; }
+  } else {
+    supplierName = document.getElementById('importSupplierName').value.trim();
+    if (!supplierName) { showImportError('Entrez le nom du producteur'); return; }
+    // If supplier already exists in 'new' mode, ask to replace
+    if (suppliers.includes(supplierName)) {
+      if (!confirm('Le producteur "' + supplierName + '" existe deja.\n\nRemplacer ses produits par les nouveaux ?\n\n(Pour ajouter sans remplacer, utilisez "Ajouter a un producteur existant")')) return;
+      deleteSupplierData(supplierName);
+    }
   }
 
-  // Add to DATA
+  // Add to DATA (append in both modes). Mark entries as _imported so they can be
+  // persisted even when attached to an original supplier.
   const startIdx = DATA.length;
   importedProducts.forEach(p => {
-    DATA.push({
+    const entry = {
       supplier: supplierName,
       name: p.name,
       desc_fr: p.desc_fr || '',
@@ -1378,49 +1434,57 @@ function confirmImport() {
       pa_ruche: p.pa_ruche,
       pv_client: p.pv_client,
       pv_conseille: p.pv_conseille,
-      image: p.image || ''
+      image: p.image || '',
+      _imported: true
+    };
+    if (p.colisage_qty > 0) entry._col = p.colisage_qty;
+    DATA.push(entry);
+  });
+
+  // CONDITIONS: only set for new supplier; preserve existing conditions when appending
+  if (!isExisting) {
+    CONDITIONS[supplierName] = {
+      contact: document.getElementById('impContact').value || '',
+      franco: document.getElementById('impFranco').value || '\u2014',
+      livraison: document.getElementById('impLivraison').value || '\u2014',
+      paiement: document.getElementById('impPaiement').value || '\u2014',
+      colisage: document.getElementById('impColisage').value || '',
+      dlc: document.getElementById('impDlc').value || '\u2014',
+      notes: document.getElementById('impNotes').value || ''
+    };
+  }
+
+  // Add to COLISAGE: only for new supplier. Existing mode relies on per-product _col
+  // to keep existing COLISAGE rules intact.
+  if (!isExisting) {
+    const colRules = [];
+    const colGroups = {};
+    importedProducts.forEach(p => {
+      if (p.colisage_qty > 0) {
+        const key = p.colisage_qty;
+        if (!colGroups[key]) colGroups[key] = [];
+        colGroups[key].push(p.name);
+      }
     });
-  });
-
-  // Add to CONDITIONS
-  CONDITIONS[supplierName] = {
-    contact: document.getElementById('impContact').value || '',
-    franco: document.getElementById('impFranco').value || '\u2014',
-    livraison: document.getElementById('impLivraison').value || '\u2014',
-    paiement: document.getElementById('impPaiement').value || '\u2014',
-    colisage: document.getElementById('impColisage').value || '',
-    dlc: document.getElementById('impDlc').value || '\u2014',
-    notes: document.getElementById('impNotes').value || ''
-  };
-
-  // Add to COLISAGE: build per-product rules from imported data
-  const colRules = [];
-  const colGroups = {};
-  importedProducts.forEach(p => {
-    if (p.colisage_qty > 0) {
-      const key = p.colisage_qty;
-      if (!colGroups[key]) colGroups[key] = [];
-      colGroups[key].push(p.name);
+    // Create regex rules per colisage quantity
+    for (const [qty, names] of Object.entries(colGroups)) {
+      // Build a regex that matches any of these product names (use first unique word of each)
+      const keywords = names.map(n => n.split(/[\s—]+/)[0]).filter((v,i,a) => a.indexOf(v)===i);
+      const pattern = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      colRules.push({match: new RegExp(pattern, 'i'), qty: parseInt(qty), label: 'Carton ' + qty + ' pcs'});
     }
-  });
-  // Create regex rules per colisage quantity
-  for (const [qty, names] of Object.entries(colGroups)) {
-    // Build a regex that matches any of these product names (use first unique word of each)
-    const keywords = names.map(n => n.split(/[\s—]+/)[0]).filter((v,i,a) => a.indexOf(v)===i);
-    const pattern = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    colRules.push({match: new RegExp(pattern, 'i'), qty: parseInt(qty), label: 'Carton ' + qty + ' pcs'});
-  }
-  // Fallback from text input
-  if (colRules.length === 0) {
-    const colisageText = document.getElementById('impColisage').value;
-    if (colisageText) {
-      const m = colisageText.match(/(\d+)/);
-      if (m) colRules.push({match: /./, qty: parseInt(m[1]), label: colisageText.split('\\n')[0].trim()});
+    // Fallback from text input
+    if (colRules.length === 0) {
+      const colisageText = document.getElementById('impColisage').value;
+      if (colisageText) {
+        const m = colisageText.match(/(\d+)/);
+        if (m) colRules.push({match: /./, qty: parseInt(m[1]), label: colisageText.split('\\n')[0].trim()});
+      }
     }
+    if (colRules.length > 0) COLISAGE[supplierName] = colRules;
   }
-  if (colRules.length > 0) COLISAGE[supplierName] = colRules;
 
-  // Rebuild suppliers list
+  // Rebuild suppliers list (only if truly new)
   if (!suppliers.includes(supplierName)) {
     suppliers.push(supplierName);
     const colors = ['#2d6a4f','#bc6c25','#457b9d','#9b2226','#606c38','#6d597a','#0077b6','#e76f51','#264653','#f4a261'];
@@ -1497,12 +1561,36 @@ async function saveCustomProducers() {
       };
     }
   });
+  // Also persist imported products that were appended to an ORIGINAL supplier
+  const additions = {};
+  DATA.forEach(p => {
+    if (p._imported && ORIGINAL_SUPPLIERS.has(p.supplier)) {
+      if (!additions[p.supplier]) additions[p.supplier] = [];
+      additions[p.supplier].push(p);
+    }
+  });
+  if (Object.keys(additions).length > 0) {
+    custom.__additions__ = additions;
+  }
   await sb.from('user_state').update({ custom_producers: custom }).eq('user_id', currentUser.id);
 }
 
 function loadCustomProducers(customData) {
   if (!customData) return;
+  // First, restore additions to original suppliers (if any)
+  if (customData.__additions__) {
+    for (const [supplierName, products] of Object.entries(customData.__additions__)) {
+      if (!ORIGINAL_SUPPLIERS.has(supplierName)) continue;
+      products.forEach(p => {
+        // Avoid duplicates on re-load by matching name
+        if (!DATA.some(d => d.supplier === supplierName && d.name === p.name && d._imported)) {
+          DATA.push(p);
+        }
+      });
+    }
+  }
   for (const [supplierName, info] of Object.entries(customData)) {
+    if (supplierName === '__additions__') continue;
     if (suppliers.includes(supplierName)) continue;
     info.products.forEach(p => DATA.push(p));
     if (info.conditions) CONDITIONS[supplierName] = info.conditions;
